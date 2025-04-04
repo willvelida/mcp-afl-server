@@ -1,0 +1,60 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Linq;
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using ModelContextProtocol.Server;
+
+namespace mcp_afl_server
+{
+    [McpServerToolType]
+    public static class TeamTools
+    {
+        [McpServerTool, Description("Gets information for a AFL team")]
+        public static async Task<string> GetInformationAboutTeam(
+            HttpClient httpClient,
+            [Description("The ID of the team")] int teamId)
+        {
+            var jsonElement = await httpClient.GetFromJsonAsync<JsonElement>($"?q=teams;team={teamId}");
+            var team = jsonElement.GetProperty("teams").EnumerateArray();
+
+            if (!team.Any())
+            {
+                return "No team found with this name";
+            }
+
+            return string.Join("\n--\n", team.Select(team =>
+            {
+                return $"""
+                    Name: {team.GetProperty("name").GetString()}
+                    Debut: {team.GetProperty("debut").GetInt32()}
+                """;
+            }));
+        }
+
+        [McpServerTool, Description("Gets a list of teams playing in a specified year")]
+        public static async Task<string> GetTeamsByYear(
+            HttpClient httpClient,
+            [Description("The year to get teams for")] int year)
+        {
+            var jsonElement = await httpClient.GetFromJsonAsync<JsonElement>($"?q=teams;year={year}");
+            var teams = jsonElement.GetProperty("teams").EnumerateArray();
+
+            if (!teams.Any())
+            {
+                return "No teams found for this year";
+            }
+
+            return string.Join("\n--\n", teams.Select(team =>
+            {
+                return $"""
+                    Name: {team.GetProperty("name").GetString()}
+                    Debut: {team.GetProperty("debut").GetInt32()}
+                """;
+            }));
+        }
+    }
+}

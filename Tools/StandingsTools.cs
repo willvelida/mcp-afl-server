@@ -14,7 +14,7 @@ namespace mcp_afl_server.Tools
     public static class StandingsTools
     {
         [McpServerTool, Description("Gets the current standing")]
-        public static async Task<string> GetCurrentStanding(
+        public static async Task<string> GetCurrentStandings(
             HttpClient httpClient)
         {
             var jsonElement = await httpClient.GetFromJsonAsync<JsonElement>("?q=standings");
@@ -47,7 +47,7 @@ namespace mcp_afl_server.Tools
         }
 
         [McpServerTool, Description("Get the standings for a particular round and year")]
-        public static async Task<string> GetFinalStandingsByYear(
+        public static async Task<string> GetStandingsByRoundAndYear(
             HttpClient httpClient,
             [Description("The round that has been played")] int roundNumber,
             [Description("The year of the standings")] int year)

@@ -14,7 +14,7 @@ namespace mcp_afl_server.Tools
     public static class TeamTools
     {
         [McpServerTool, Description("Gets information for a AFL team")]
-        public static async Task<string> GetInformationAboutTeam(
+        public static async Task<string> GetTeamInfo(
             HttpClient httpClient,
             [Description("The ID of the team")] int teamId)
         {
@@ -35,8 +35,8 @@ namespace mcp_afl_server.Tools
             }));
         }
 
-        [McpServerTool, Description("Gets a list of teams playing in a specified year")]
-        public static async Task<string> GetTeamsByYear(
+        [McpServerTool, Description("ets a list of teams who played in a particular season")]
+        public static async Task<string> GetTeamsBySeason(
             HttpClient httpClient,
             [Description("The year to get teams for")] int year)
         {

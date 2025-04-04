@@ -8,7 +8,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using ModelContextProtocol.Server;
 
-namespace mcp_afl_server
+namespace mcp_afl_server.Tools
 {
     [McpServerToolType]
     public static class TeamTools

@@ -6,6 +6,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using mcp_afl_server.Models;
 using ModelContextProtocol.Server;
 
 namespace mcp_afl_server.Tools
@@ -18,31 +19,16 @@ namespace mcp_afl_server.Tools
             HttpClient httpClient,
             [Description("The ID of the game")] int gameId)
         {
-            var jsonElement = await httpClient.GetFromJsonAsync<JsonElement>($"?q=games;game={gameId}");
-            var games = jsonElement.GetProperty("games").EnumerateArray();
+            var response = await httpClient.GetFromJsonAsync<JsonElement>($"?q=games;game={gameId}");
+            var gameResponses = JsonSerializer.Deserialize<List<GameResponse>>(
+                response.GetProperty("games").GetRawText());
 
-            if (!games.Any())
+            if (gameResponses == null || !gameResponses.Any())
             {
                 return "No game found!";
             }
 
-            return string.Join("\n--\n", games.Select(game =>
-            {
-                return $"""
-                    Home Team: {game.GetProperty("hteam").GetString()}
-                    Away Team: {game.GetProperty("ateam").GetString()}
-                    Home Team Score: {game.GetProperty("hscore").GetInt32()}
-                    Home Team Goals: {game.GetProperty("hgoals").GetInt32()}
-                    Home Team Behinds: {game.GetProperty("hbehinds").GetInt32()}
-                    Away Team Score: {game.GetProperty("ascore").GetInt32()}
-                    Away Team Goals: {game.GetProperty("agoals").GetInt32()}
-                    Away Team Behinds: {game.GetProperty("abehinds").GetInt32()}
-                    Venue: {game.GetProperty("venue").GetString()}
-                    Round: {game.GetProperty("round").GetString()}
-                    Date: {game.GetProperty("date").GetString()}
-                    Winner: {game.GetProperty("winner").GetString()}
-                """;
-            }));
+            return string.Join("\n--\n", gameResponses.Select(game => FormatGameResponse(game)));
         }
 
         [McpServerTool, Description("Get the results from a round of a particular year")]
@@ -51,31 +37,35 @@ namespace mcp_afl_server.Tools
             [Description("The year of the round")] int year,
             [Description("The round number")] int round)
         {
-            var jsonElement = await httpClient.GetFromJsonAsync<JsonElement>($"?q=games;year={year};round={round}");
-            var games = jsonElement.GetProperty("games").EnumerateArray();
+            var response = await httpClient.GetFromJsonAsync<JsonElement>($"?q=games;year={year};round={round}");
+            var gameResponses = JsonSerializer.Deserialize<List<GameResponse>>(
+                response.GetProperty("games").GetRawText());
 
-            if (!games.Any())
+            if (gameResponses == null || !gameResponses.Any())
             {
                 return $"No games found for Round {round} in the year {year}";
             }
 
-            return string.Join("\n--\n", games.Select(game =>
-            {
-                return $"""
-                    Home Team: {game.GetProperty("hteam").GetString()}
-                    Away Team: {game.GetProperty("ateam").GetString()}
-                    Home Team Score: {game.GetProperty("hscore").GetInt32()}
-                    Home Team Goals: {game.GetProperty("hgoals").GetInt32()}
-                    Home Team Behinds: {game.GetProperty("hbehinds").GetInt32()}
-                    Away Team Score: {game.GetProperty("ascore").GetInt32()}
-                    Away Team Goals: {game.GetProperty("agoals").GetInt32()}
-                    Away Team Behinds: {game.GetProperty("abehinds").GetInt32()}
-                    Venue: {game.GetProperty("venue").GetString()}
-                    Round: {game.GetProperty("round").GetString()}
-                    Date: {game.GetProperty("date").GetString()}
-                    Winner: {game.GetProperty("winner").GetString()}
-                """;
-            }));
+            return string.Join("\n--\n", gameResponses.Select(game => FormatGameResponse(game)));
+        }
+
+        private static string FormatGameResponse(GameResponse game)
+        {
+            return $"""
+                Home Team: {game.HomeTeam}
+                Away Team: {game.AwayTeam}
+                Home Team Score: {game.HomeTeamScore}
+                Home Team Goals: {game.HomeTealGoals}
+                Home Team Behinds: {game.HomeTeamBehinds}
+                Away Team Score: {game.AwayTeamScore}
+                Away Team Goals: {game.AwayTeamGoals}
+                Away Team Behinds: {game.AwayTeamBehinds}
+                Venue: {game.Venue}
+                Round: {game.Round}
+                Round Name: {game.RoundName}
+                Date: {game.Date}
+                Winner: {game.Winner}
+            """;
         }
     }
 }

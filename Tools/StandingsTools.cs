@@ -12,17 +12,16 @@ namespace mcp_afl_server.Tools
         [McpServerTool, Description("Gets the current standing")]
         public static async Task<string> GetCurrentStandings(HttpClient httpClient)
         {
-            var jsonElement = await httpClient.GetFromJsonAsync<JsonElement>("?q=standings");
-            var standings = jsonElement.GetProperty("standings").EnumerateArray();
+            var response = await httpClient.GetFromJsonAsync<JsonElement>("?q=standings");
+            var standingsResponse = JsonSerializer.Deserialize<List<StandingsResponse>>(
+                response.GetProperty("standings").GetRawText());
 
-            if (!standings.Any())
+            if (!standingsResponse.Any() || standingsResponse == null)
             {
                 return "Unable to retrieve current standings";
             }
-
-            // Convert JsonElement to StandingsResponse objects and format them
-            var standingResponses = standings.Select(s => JsonSerializer.Deserialize<StandingsResponse>(s.ToString()));
-            return string.Join("\n--\n", standingResponses.Select(FormatStandingsResponse));
+           
+            return string.Join("\n--\n", standingsResponse.Select(standings => FormatStandingsResponse(standings)));
         }
 
         [McpServerTool, Description("Get the standings for a particular round and year")]
@@ -31,17 +30,16 @@ namespace mcp_afl_server.Tools
             [Description("The round that has been played")] int roundNumber,
             [Description("The year of the standings")] int year)
         {
-            var jsonElement = await httpClient.GetFromJsonAsync<JsonElement>($"?q=standings;year={year};round={roundNumber}");
-            var standings = jsonElement.GetProperty("standings").EnumerateArray();
+            var response = await httpClient.GetFromJsonAsync<JsonElement>($"?q=standings;year={year};round={roundNumber}");
+            var standingsResponse = JsonSerializer.Deserialize<List<StandingsResponse>>(
+                response.GetProperty("standings").GetRawText());
 
-            if (!standings.Any())
+            if (!standingsResponse.Any() || standingsResponse == null)
             {
                 return $"No standings found for the year {year} after round {roundNumber}";
             }
 
-            // Convert JsonElement to StandingsResponse objects and format them
-            var standingResponses = standings.Select(s => JsonSerializer.Deserialize<StandingsResponse>(s.ToString()));
-            return string.Join("\n--\n", standingResponses.Select(FormatStandingsResponse));
+            return string.Join("\n--\n", standingsResponse.Select(standings => FormatStandingsResponse(standings)));
         }
 
         private static string FormatStandingsResponse(StandingsResponse standing)

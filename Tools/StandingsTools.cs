@@ -20,7 +20,7 @@ namespace mcp_afl_server.Tools
             {
                 return "Unable to retrieve current standings";
             }
-           
+
             return string.Join("\n--\n", standingsResponse.Select(standings => FormatStandingsResponse(standings)));
         }
 

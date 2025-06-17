@@ -61,5 +61,8 @@ resource gitHubPrCreds 'Microsoft.ManagedIdentity/userAssignedIdentities/federat
 @description('The resource ID of the deployed user-assigned identity')
 output id string = uai.id
 
+@description('The Principal Id of the deployed user-identity')
+output principalId string = uai.properties.principalId
+
 @description('The name of the deployed user-assigned identity')
 output name string = uai.name

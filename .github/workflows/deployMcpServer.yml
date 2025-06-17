@@ -11,8 +11,12 @@ permissions:
     pull-requests: write
 
 jobs:
-    lint-acr-bicep:
+    lint-bicep:
         name: Run Bicep Linter
-        uses: willvelida/mcp-afl-server/.github/workflows/template-bicep-linter@feature/gh-actions
-        with:
-            template-file: './infra/deployAcr.bicep'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              name: Checkout code
+            
+            - name: Run Bicep Linter
+              run: az bicep build --file './infra/deployMcpServer.bicep'

@@ -36,11 +36,14 @@ jobs:
                 tenant-id: ${{ secrets.AZURE_TENANT_ID }}
                 subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-            - uses: azure/arm-deploy@v2
+            - uses: azure/bicep-deploy@v2
               name: Run preflight validation
               with:
+                type: deployment
                 scope: subscription
-                deploymentName: ${{ github.run_number }}
-                template: './infra/deployMcpServer.bicep'
-                parameters: './infra/parameters.deployMcpServer.bicepparam'
-                deploymentMode: Validate
+                location: australiaeast
+                subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+                name: ${{ github.run_number }}
+                template-file: './infra/deployMcpServer.bicep'
+                parameters-file: './infra/parameters.deployMcpServer.bicepparam'
+                operation: validate

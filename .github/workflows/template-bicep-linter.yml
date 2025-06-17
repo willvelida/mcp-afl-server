@@ -1,0 +1,19 @@
+name: Lint Bicep Template
+
+on:
+    workflow_call:
+        inputs:
+            template-file:
+                required: true
+                type: string
+
+jobs:
+    lint:
+        name: Lint Bicep Template
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              name: Checkout Repository Code
+
+            - name: Run Bicep Linter
+              run: az bicep build --file ${{ inputs.template-file }}

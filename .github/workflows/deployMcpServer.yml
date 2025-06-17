@@ -1,1 +1,18 @@
+name: Deploy AFL MCP Server
 
+on:
+    pull_request:
+        branches:
+            - main
+
+permissions:
+    contents: read
+    id-token: write
+    pull-requests: write
+
+jobs:
+    lint-acr-bicep:
+        name: Run Bicep Linter
+        uses: willvelida/mcp-afl-server/.github/workflows/template-bicep-linter@feature/gh-actions
+        with:
+            template-file: './infra/deployAcr.bicep'

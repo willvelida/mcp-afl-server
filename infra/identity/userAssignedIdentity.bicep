@@ -53,6 +53,9 @@ resource gitHubPrCreds 'Microsoft.ManagedIdentity/userAssignedIdentities/federat
     issuer: issuer
     subject: 'repo:${githubOrganization}/${githubRepositoryName}:pull_request'
   }
+  dependsOn: [
+    gitHubEnvCreds // Concurrent Federated Identity Credential writes under the same managed identity are not supported.s
+  ]
 }
 
 @description('The resource ID of the deployed user-assigned identity')

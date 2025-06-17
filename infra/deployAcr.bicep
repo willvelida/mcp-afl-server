@@ -6,6 +6,12 @@ param baseName string
 @description('The Tags applied to all resources')
 param tags object
 
+@description('The GitHub Organization for the federated credentials')
+param githubOrganization string
+
+@description('The GitHub Repository for the federated credentials')
+param githubRepositoryName string
+
 @description('Location to deploy Azure resources')
 @allowed([
   'australiaeast'
@@ -38,5 +44,7 @@ module uai 'identity/userAssignedIdentity.bicep' = {
   params: {
     tags: tags
     baseName: baseName
+    githubOrganization: githubOrganization
+    githubRepositoryName: githubRepositoryName
   }
 }

@@ -20,3 +20,27 @@ jobs:
             
             - name: Run Bicep Linter
               run: az bicep build --file './infra/deployMcpServer.bicep'
+
+    validate-bicep:
+        needs: lint-bicep
+        name: Validate Bicep Template
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              name: Checkout code
+
+            - uses: azure/login@v2
+              name: Login to Azure
+              with:
+                client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+            - uses: azure/arm-deploy@v2
+              name: Run preflight validation
+              with:
+                scope: subscription
+                deploymentName: ${{ github.run_number }}
+                template: './infra/deployMcpServer.bicep'
+                parameters: './infra/parameters.deployMcpServer.bicepparam'
+                deploymentMode: Validate

@@ -22,7 +22,7 @@ param githubOrganization string
 param githubRepositoryName string
 
 var uaiName = 'uai-${baseName}-${environmentName}'
-var issuer = 'https://token/actions.githubusercontent.com'
+var issuer = 'https://token.actions.githubusercontent.com'
 var azureADaudience = 'api://AzureADTokenExchange'
 
 resource uai 'Microsoft.ManagedIdentity/userAssignedIdentities@2025-01-31-preview' = {

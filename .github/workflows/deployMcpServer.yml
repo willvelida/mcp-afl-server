@@ -115,6 +115,7 @@ jobs:
                 type: deployment
                 operation: whatIf
                 scope: subscription
+                validation-level: 'providerNoRbac'
                 subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
                 location: australiaeast
                 name: ${{ github.run_number }}

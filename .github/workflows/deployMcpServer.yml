@@ -38,7 +38,7 @@ jobs:
               id: getacrname
               run: |
                 acrName=$(az acr list --resource-group ${{ secrets.RG_NAME }} --query "[0].name" -o tsv)
-                echo "acrName=$acrName" >> "$GITHUB_OUPUT"
+                echo "acrName=$acrName" >> "$GITHUB_OUTPUT"
 
             - name: Get ACR Server
               id: getacrserver

@@ -22,7 +22,7 @@ param githubOrganization string
 param githubRepositoryName string
 
 var uaiName = 'uai-${baseName}-${environmentName}'
-var issuer = 'https://token/actions.githubusercontent.com'
+var issuer = 'https://token.actions.githubusercontent.com'
 var azureADaudience = 'api://AzureADTokenExchange'
 
 resource uai 'Microsoft.ManagedIdentity/userAssignedIdentities@2025-01-31-preview' = {
@@ -53,10 +53,16 @@ resource gitHubPrCreds 'Microsoft.ManagedIdentity/userAssignedIdentities/federat
     issuer: issuer
     subject: 'repo:${githubOrganization}/${githubRepositoryName}:pull_request'
   }
+  dependsOn: [
+    gitHubEnvCreds // Concurrent Federated Identity Credential writes under the same managed identity are not supported.s
+  ]
 }
 
 @description('The resource ID of the deployed user-assigned identity')
 output id string = uai.id
+
+@description('The Principal Id of the deployed user-identity')
+output principalId string = uai.properties.principalId
 
 @description('The name of the deployed user-assigned identity')
 output name string = uai.name

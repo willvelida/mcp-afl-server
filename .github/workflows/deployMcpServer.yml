@@ -1,1 +1,155 @@
+name: Deploy AFL MCP Server
 
+on:
+    pull_request:
+        branches:
+            - main
+
+permissions:
+    contents: read
+    id-token: write
+    pull-requests: write
+
+jobs:
+    build-container-image:
+        name: Build Docker Image
+        runs-on: ubuntu-latest
+        outputs:
+            loginServer: ${{ steps.getacrserver.outputs.loginServer }}
+        defaults:
+            run:
+                working-directory: './src'
+        steps:
+            - uses: actions/checkout@v4
+              name: Checkout code
+
+            - uses: azure/login@v2
+              name: Login to Azure
+              with:
+                client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+            - name: Set up Docker buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Get ACR name
+              id: getacrname
+              run: |
+                acrName=$(az acr list --resource-group ${{ secrets.RG_NAME }} --query "[0].name" -o tsv)
+                echo "acrName=$acrName" >> "$GITHUB_OUTPUT"
+
+            - name: Get ACR Server
+              id: getacrserver
+              run: |
+                loginServer=$(az acr list --resource-group ${{ secrets.RG_NAME }} --query "[0].loginServer" -o tsv)
+                echo "loginServer=$loginServer" >> "$GITHUB_OUTPUT"
+                
+            - name: Login to Azure Container Registry
+              run: az acr login --name ${{ steps.getacrname.outputs.acrName }}
+
+            - name: Build Docker Image
+              run: |
+                docker build -t ${{ steps.getacrserver.outputs.loginServer }}/afl-mcp-server:${{ github.sha }} .
+
+            - name: Push Docker Image
+              run: |
+                docker push ${{ steps.getacrserver.outputs.loginServer }}/afl-mcp-server:${{ github.sha }}
+
+    lint-bicep:
+        name: Run Bicep Linter
+        needs: build-container-image
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              name: Checkout code
+            
+            - name: Run Bicep Linter
+              run: az bicep build --file './infra/deployMcpServer.bicep'
+
+    validate-bicep:
+        name: Validate Bicep Template
+        needs: [lint-bicep, build-container-image]
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              name: Checkout code
+
+            - uses: azure/login@v2
+              name: Login to Azure
+              with:
+                client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+            - uses: azure/bicep-deploy@v2
+              name: Run preflight validation
+              with:
+                type: deployment
+                scope: subscription
+                location: australiaeast
+                subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+                name: ${{ github.run_number }}
+                template-file: './infra/deployMcpServer.bicep'
+                parameters-file: './infra/parameters.deployMcpServer.bicepparam'
+                operation: validate
+
+    preview-bicep:
+        name: Preview Bicep Deployment
+        needs: [lint-bicep, build-container-image, validate-bicep]
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              name: Checkout code
+            
+            - uses: azure/login@v2
+              name: Login to Azure
+              with:
+                client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+            - uses: azure/bicep-deploy@v2
+              name: Perform What-If
+              with:
+                type: deployment
+                operation: whatIf
+                scope: subscription
+                validation-level: 'providerNoRbac'
+                subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+                location: australiaeast
+                name: ${{ github.run_number }}
+                template-file: './infra/deployMcpServer.bicep'
+                parameters-file: './infra/parameters.deployMcpServer.bicepparam'
+                parameters: '{"imageName": "${{ needs.build-container-image.outputs.loginServer}}/afl-mcp-server:${{ github.sha }}"}'
+
+    deploy-mcp-server:
+        name: Deploy MCP Server
+        needs: [lint-bicep, build-container-image, validate-bicep, preview-bicep]
+        runs-on: ubuntu-latest
+        environment: prod
+        steps:
+            - uses: actions/checkout@v4
+              name: Checkout code
+            
+            - uses: azure/login@v2
+              name: Login to Azure
+              with:
+                client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+            - uses: azure/bicep-deploy@v2
+              name: Deploy Bicep Template
+              with:
+                type: deployment
+                operation: create
+                scope: subscription
+                subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+                location: australiaeast
+                name: ${{ github.run_number }}
+                template-file: './infra/deployMcpServer.bicep'
+                parameters-file: './infra/parameters.deployMcpServer.bicepparam'
+                parameters: '{"imageName": "${{ needs.build-container-image.outputs.loginServer}}/afl-mcp-server:${{ github.sha }}"}'
+
+            

@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "mcp-afl-server": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}

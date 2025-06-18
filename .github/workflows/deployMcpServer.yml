@@ -121,7 +121,7 @@ jobs:
                 name: ${{ github.run_number }}
                 template-file: './infra/deployMcpServer.bicep'
                 parameters-file: './infra/parameters.deployMcpServer.bicepparam'
-                parameters: '{"containerRegistryName": "${{ needs.build-container-image.outputs.acrName }}", "imageName": "${{ needs.build-container-image.outputs.loginServer}}afl-mcp-server:${{ github.sha }}"}'
+                parameters: '{"containerRegistryName": "${{ needs.build-container-image.outputs.acrName }}", "imageName": "${{ needs.build-container-image.outputs.loginServer}}/afl-mcp-server:${{ github.sha }}"}'
 
     deploy-mcp-server:
         name: Deploy MCP Server
@@ -140,7 +140,7 @@ jobs:
                 subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
             - uses: azure/bicep-deploy@v2
-              name: Perform What-If
+              name: Deploy Bicep Template
               with:
                 type: deployment
                 operation: create
@@ -150,6 +150,6 @@ jobs:
                 name: ${{ github.run_number }}
                 template-file: './infra/deployMcpServer.bicep'
                 parameters-file: './infra/parameters.deployMcpServer.bicepparam'
-                parameters: '{"containerRegistryName": "${{ needs.build-container-image.outputs.acrName }}", "imageName": "${{ needs.build-container-image.outputs.loginServer}}afl-mcp-server:${{ github.sha }}"}'
+                parameters: '{"containerRegistryName": "${{ needs.build-container-image.outputs.acrName }}", "imageName": "${{ needs.build-container-image.outputs.loginServer}}/afl-mcp-server:${{ github.sha }}"}'
 
             

@@ -1,7 +1,7 @@
 using 'deployMcpServer.bicep'
 
 param baseName = 'aflmcpserver'
-param containerRegistryName = ''
+param containerRegistryName = 'arcaflmcpserverprod'
 param uaiName = 'uai-aflmcpserver-prod'
 param imageName = ''
 param tags = {

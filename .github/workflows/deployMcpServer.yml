@@ -16,7 +16,6 @@ jobs:
         runs-on: ubuntu-latest
         outputs:
             loginServer: ${{ steps.getacrserver.outputs.loginServer }}
-            acrName: ${{ steps.getacrserver.outputs.acrName }}
         defaults:
             run:
                 working-directory: './src'
@@ -121,7 +120,7 @@ jobs:
                 name: ${{ github.run_number }}
                 template-file: './infra/deployMcpServer.bicep'
                 parameters-file: './infra/parameters.deployMcpServer.bicepparam'
-                parameters: '{"containerRegistryName": "${{ needs.build-container-image.outputs.acrName }}", "imageName": "${{ needs.build-container-image.outputs.loginServer}}/afl-mcp-server:${{ github.sha }}"}'
+                parameters: '{"imageName": "${{ needs.build-container-image.outputs.loginServer}}/afl-mcp-server:${{ github.sha }}"}'
 
     deploy-mcp-server:
         name: Deploy MCP Server
@@ -150,6 +149,6 @@ jobs:
                 name: ${{ github.run_number }}
                 template-file: './infra/deployMcpServer.bicep'
                 parameters-file: './infra/parameters.deployMcpServer.bicepparam'
-                parameters: '{"containerRegistryName": "${{ needs.build-container-image.outputs.acrName }}", "imageName": "${{ needs.build-container-image.outputs.loginServer}}/afl-mcp-server:${{ github.sha }}"}'
+                parameters: '{"imageName": "${{ needs.build-container-image.outputs.loginServer}}/afl-mcp-server:${{ github.sha }}"}'
 
             

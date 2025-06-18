@@ -117,6 +117,7 @@ jobs:
                 operation: whatIf
                 scope: subscription
                 subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+                location: australiaeast
                 name: ${{ github.run_number }}
                 template-file: './infra/deployMcpServer.bicep'
                 parameters-file: './infra/parameters.deployMcpServer.bicepparam'
@@ -126,6 +127,7 @@ jobs:
         name: Deploy MCP Server
         needs: [lint-bicep, build-container-image, validate-bicep, preview-bicep]
         runs-on: ubuntu-latest
+        environment: prod
         steps:
             - uses: actions/checkout@v4
               name: Checkout code
@@ -144,6 +146,7 @@ jobs:
                 operation: create
                 scope: subscription
                 subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+                location: australiaeast
                 name: ${{ github.run_number }}
                 template-file: './infra/deployMcpServer.bicep'
                 parameters-file: './infra/parameters.deployMcpServer.bicepparam'

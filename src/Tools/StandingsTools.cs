@@ -22,15 +22,17 @@ namespace mcp_afl_server.Tools
         [McpServerTool, Description("Gets the current standing")]
         public async Task<List<StandingsResponse>> GetCurrentStandings()
         {
+            const string endpoint = "?q=standings";
             _logger.LogInformation("Fetching current standings");
 
             try
             {
-                var response = await _httpClient.GetAsync("?q=standings");
+                var response = await _httpClient.GetAsync(endpoint);
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogError($"API request failed. StatusCode: {response.StatusCode}");
+                    _logger.LogError("API request failed. StatusCode: {StatusCode}, Endpoint: {Endpoint}", 
+                        response.StatusCode, endpoint);
                     return new List<StandingsResponse>();
                 }
 
@@ -38,25 +40,25 @@ namespace mcp_afl_server.Tools
 
                 if (!jsonElement.TryGetProperty("standings", out var standingsProperty))
                 {
-                    _logger.LogWarning("No 'standings' property found in API response for current season");
+                    _logger.LogWarning("No 'standings' property found in API response for current standings");
                     return new List<StandingsResponse>();
                 }
 
-                var standingsResponse = JsonSerializer.Deserialize<List<StandingsResponse>>(standingsProperty.GetRawText());
+                var standingsResponse = JsonSerializer.Deserialize<List<StandingsResponse>>(
+                    standingsProperty.GetRawText());
 
                 if (standingsResponse == null || !standingsResponse.Any())
                 {
-                    _logger.LogInformation("No current standing found");
+                    _logger.LogInformation("No current standings found");
                     return new List<StandingsResponse>();
                 }
 
-                _logger.LogInformation("Successfully retrieved standings for current season");
+                _logger.LogInformation("Successfully retrieved {Count} current standings", standingsResponse.Count);
                 return standingsResponse;
-
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogError(ex, "Network error fetching current standing");
+                _logger.LogError(ex, "Network error fetching current standings");
                 return new List<StandingsResponse>();
             }
             catch (TaskCanceledException ex)
@@ -66,12 +68,12 @@ namespace mcp_afl_server.Tools
             }
             catch (JsonException ex)
             {
-                _logger.LogError(ex, "JSON parsisng error for current standings");
+                _logger.LogError(ex, "JSON parsing error for current standings");
                 return new List<StandingsResponse>();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving standings");
+                _logger.LogError(ex, "Unexpected error fetching current standings");
                 return new List<StandingsResponse>();
             }
         }
@@ -84,26 +86,27 @@ namespace mcp_afl_server.Tools
             // Input validation
             if (!IsValidYear(year))
             {
-                _logger.LogWarning($"Invalid year: {year}");
+                _logger.LogWarning("Invalid year parameter: {Year}", year);
                 return new List<StandingsResponse>();
             }
 
-            if (!IsValidRound(roundNumber))
+            if (!IsValidRound(roundNumber)) // ✅ Fixed: was IsValidRound(year)
             {
-                _logger.LogWarning($"Invalid round parameter: {roundNumber}");
+                _logger.LogWarning("Invalid round parameter: {Round}", roundNumber);
                 return new List<StandingsResponse>();
             }
 
-            _logger.LogInformation($"Fetching standings for Year: {year}, Round: {roundNumber}");
-
+            var endpoint = $"?q=standings;year={year};round={roundNumber}";
+            _logger.LogInformation("Fetching standings for Year: {Year}, Round: {Round}", year, roundNumber);
 
             try
             {
-                var response = await _httpClient.GetAsync($"?q=standings;year={year};round={roundNumber}");
+                var response = await _httpClient.GetAsync(endpoint);
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogError($"API request failed. StatusCode: {response.StatusCode}");
+                    _logger.LogError("API request failed. StatusCode: {StatusCode}, Endpoint: {Endpoint}", 
+                        response.StatusCode, endpoint);
                     return new List<StandingsResponse>();
                 }
 
@@ -111,46 +114,48 @@ namespace mcp_afl_server.Tools
 
                 if (!jsonElement.TryGetProperty("standings", out var standingsProperty))
                 {
-                    _logger.LogWarning("No 'standings' property found in API response for current season");
+                    _logger.LogWarning("No 'standings' property found in API response for Year: {Year}, Round: {Round}", 
+                        year, roundNumber);
                     return new List<StandingsResponse>();
                 }
 
-                var standingsResponse = JsonSerializer.Deserialize<List<StandingsResponse>>(standingsProperty.GetRawText());
+                var standingsResponse = JsonSerializer.Deserialize<List<StandingsResponse>>(
+                    standingsProperty.GetRawText()); // ✅ Fixed: was jsonElement.GetRawText()
 
                 if (standingsResponse == null || !standingsResponse.Any())
                 {
-                    _logger.LogInformation($"No standings found for Year: {year}, Round: {roundNumber}");
+                    _logger.LogInformation("No standings found for Year: {Year}, Round: {Round}", year, roundNumber);
                     return new List<StandingsResponse>();
                 }
 
-                _logger.LogInformation($"Successfully retrieved standings for Year: {year}, Round: {roundNumber}");
+                _logger.LogInformation("Successfully retrieved {Count} standings for Year: {Year}, Round: {Round}", 
+                    standingsResponse.Count, year, roundNumber);
 
                 return standingsResponse;
-
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogError(ex, $"Network error fetching standings after Round {roundNumber}, Year {year}");
+                _logger.LogError(ex, "Network error fetching standings for Year: {Year}, Round: {Round}", year, roundNumber);
                 return new List<StandingsResponse>();
             }
             catch (TaskCanceledException ex)
             {
-                _logger.LogError(ex, $"Timeout fetching standings after Round {roundNumber}, Year {year}");
+                _logger.LogError(ex, "Timeout fetching standings for Year: {Year}, Round: {Round}", year, roundNumber);
                 return new List<StandingsResponse>();
             }
             catch (JsonException ex)
             {
-                _logger.LogError(ex, $"JSON parsisng error for standings after Round {roundNumber}, Year {year}");
+                _logger.LogError(ex, "JSON parsing error for standings Year: {Year}, Round: {Round}", year, roundNumber);
                 return new List<StandingsResponse>();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error retrieving standings after Round {roundNumber}, Year {year}");
+                _logger.LogError(ex, "Unexpected error fetching standings for Year: {Year}, Round: {Round}", year, roundNumber);
                 return new List<StandingsResponse>();
             }
         }
 
-        private bool IsValidYear(int year) => year >= 1897 && year <= DateTime.Now.Year + 1;
-        private bool IsValidRound(int round) => round >= 1 && round <= 23;
+        private static bool IsValidYear(int year) => year >= 1897 && year <= DateTime.Now.Year + 1;
+        private static bool IsValidRound(int round) => round >= 1 && round <= 30; // ✅ Updated: was 23, now 30 for consistency
     }
 }

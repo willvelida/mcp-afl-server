@@ -31,7 +31,13 @@ builder.Services.AddSingleton(_ =>
     return client;
 });
 
+builder.Services.AddScoped<GameTools>();
+builder.Services.AddScoped<LadderTools>();
+builder.Services.AddScoped<PowerRankingsTools>();
+builder.Services.AddScoped<SourcesTools>();
 builder.Services.AddScoped<StandingsTools>();
+builder.Services.AddScoped<TeamTools>();
+builder.Services.AddScoped<TipsTools>();
 
 var app = builder.Build();
 

@@ -90,7 +90,7 @@ namespace mcp_afl_server.Tools
                 return new List<StandingsResponse>();
             }
 
-            if (!IsValidRound(roundNumber)) // ✅ Fixed: was IsValidRound(year)
+            if (!IsValidRound(roundNumber))
             {
                 _logger.LogWarning("Invalid round parameter: {Round}", roundNumber);
                 return new List<StandingsResponse>();
@@ -120,7 +120,7 @@ namespace mcp_afl_server.Tools
                 }
 
                 var standingsResponse = JsonSerializer.Deserialize<List<StandingsResponse>>(
-                    standingsProperty.GetRawText()); // ✅ Fixed: was jsonElement.GetRawText()
+                    standingsProperty.GetRawText());
 
                 if (standingsResponse == null || !standingsResponse.Any())
                 {

@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Headers;
+using mcp_afl_server.Tools;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,6 +30,8 @@ builder.Services.AddSingleton(_ =>
     client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("mcp-afl-server", "1.0"));
     return client;
 });
+
+builder.Services.AddScoped<StandingsTools>();
 
 var app = builder.Build();
 

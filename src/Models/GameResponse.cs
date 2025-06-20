@@ -11,7 +11,7 @@ namespace mcp_afl_server.Models
         [JsonPropertyName("hscore")]
         public int HomeTeamScore { get; set; }
         [JsonPropertyName("hgoals")]
-        public int HomeTealGoals { get; set; }
+        public int HomeTeamGoals { get; set; }
         [JsonPropertyName("hbehinds")]
         public int HomeTeamBehinds { get; set; }
         [JsonPropertyName("ascore")]

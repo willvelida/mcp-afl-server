@@ -50,7 +50,7 @@ namespace mcp_afl_server.Tools
                 Home Team: {game.HomeTeam}
                 Away Team: {game.AwayTeam}
                 Home Team Score: {game.HomeTeamScore}
-                Home Team Goals: {game.HomeTealGoals}
+                Home Team Goals: {game.HomeTeamGoals}
                 Home Team Behinds: {game.HomeTeamBehinds}
                 Away Team Score: {game.AwayTeamScore}
                 Away Team Goals: {game.AwayTeamGoals}

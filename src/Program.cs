@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Headers;
+using mcp_afl_server.Tools;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,6 +9,17 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Add CORS for Azure Container Apps
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
 
 builder.Services.AddMcpServer()
     .WithHttpTransport()
@@ -23,17 +35,30 @@ builder.Services.AddOpenTelemetry()
     .WithLogging()
     .UseOtlpExporter();
 
-builder.Services.AddSingleton(_ =>
+builder.Services.AddHttpClient<HttpClient>("SquiggleApi", client =>
 {
-    var client = new HttpClient() { BaseAddress = new Uri("https://api.squiggle.com.au/") };
+    client.BaseAddress = new Uri("https://api.squiggle.com.au/");
     client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("mcp-afl-server", "1.0"));
-    return client;
-});
+})
+.AddStandardResilienceHandler();
+
+builder.Services.AddSingleton<HttpClient>(provider => provider.GetRequiredService<IHttpClientFactory>().CreateClient("SquiggleApi"));
+
+builder.Services.AddScoped<GameTools>();
+builder.Services.AddScoped<LadderTools>();
+builder.Services.AddScoped<PowerRankingsTools>();
+builder.Services.AddScoped<SourcesTools>();
+builder.Services.AddScoped<StandingsTools>();
+builder.Services.AddScoped<TeamTools>();
+builder.Services.AddScoped<TipsTools>();
 
 var app = builder.Build();
 
+app.UseCors();
+
 app.MapGet("/api/healthz", () => Results.Ok("Healthy"));
 
+// Map MCP endpoints
 app.MapMcp();
 
 app.Run();

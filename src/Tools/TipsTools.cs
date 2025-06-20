@@ -1,6 +1,4 @@
 ﻿using System.ComponentModel;
-using System.Net.Http.Json;
-using System.Text.Json;
 using mcp_afl_server.Models;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
@@ -8,15 +6,11 @@ using ModelContextProtocol.Server;
 namespace mcp_afl_server.Tools
 {
     [McpServerToolType]
-    public class TipsTools
+    public class TipsTools : BaseAFLTool
     {
-        private readonly HttpClient _httpClient;
-        private readonly ILogger<TipsTools> _logger;
-
         public TipsTools(HttpClient httpClient, ILogger<TipsTools> logger)
+            : base(httpClient, logger)
         {
-            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         [McpServerTool, Description("Get the tips for a particular round and year")]
@@ -24,208 +18,62 @@ namespace mcp_afl_server.Tools
             [Description("The round that has been played")] int roundNumber,
             [Description("The year of the tips")] int year)
         {
-            // Input validation
-            if (!IsValidYear(year))
+            // Validate parameters using base class method
+            if (!ValidateParameters(
+                ("year", year, val => IsValidYear((int)val), "Year must be between 1897 and current year + 1"),
+                ("roundNumber", roundNumber, val => IsValidRound((int)val), "Round must be between 1 and 30")))
             {
-                _logger.LogWarning("Invalid year parameter: {Year}", year);
-                return new List<TipsResponse>();
-            }
-
-            if (!IsValidRound(roundNumber))
-            {
-                _logger.LogWarning("Invalid round parameter: {Round}", roundNumber);
                 return new List<TipsResponse>();
             }
 
             var endpoint = $"?q=tips;year={year};round={roundNumber}";
-            _logger.LogInformation("Fetching tips for Year: {Year}, Round: {Round}", year, roundNumber);
+            var operationName = $"Tips for Year: {year}, Round: {roundNumber}";
 
-            try
-            {
-                var response = await _httpClient.GetAsync(endpoint);
+            var result = await ExecuteApiCallAsync<List<TipsResponse>>(
+                endpoint,
+                operationName,
+                "tips"
+            );
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogError("API request failed. StatusCode: {StatusCode}, Endpoint: {Endpoint}", 
-                        response.StatusCode, endpoint);
-                    return new List<TipsResponse>();
-                }
-
-                var jsonElement = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-                if (!jsonElement.TryGetProperty("tips", out var tipsProperty))
-                {
-                    _logger.LogWarning("No 'tips' property found in API response for Year: {Year}, Round: {Round}", 
-                        year, roundNumber);
-                    return new List<TipsResponse>();
-                }
-
-                var tipsResponse = JsonSerializer.Deserialize<List<TipsResponse>>(
-                    tipsProperty.GetRawText());
-
-                if (tipsResponse == null || !tipsResponse.Any())
-                {
-                    _logger.LogInformation("No tips found for Year: {Year}, Round: {Round}", year, roundNumber);
-                    return new List<TipsResponse>();
-                }
-
-                _logger.LogInformation("Successfully retrieved {Count} tips for Year: {Year}, Round: {Round}", 
-                    tipsResponse.Count, year, roundNumber);
-                
-                return tipsResponse;
-            }
-            catch (HttpRequestException ex)
-            {
-                _logger.LogError(ex, "Network error fetching tips for Year: {Year}, Round: {Round}", year, roundNumber);
-                return new List<TipsResponse>();
-            }
-            catch (TaskCanceledException ex)
-            {
-                _logger.LogError(ex, "Timeout fetching tips for Year: {Year}, Round: {Round}", year, roundNumber);
-                return new List<TipsResponse>();
-            }
-            catch (JsonException ex)
-            {
-                _logger.LogError(ex, "JSON parsing error for tips Year: {Year}, Round: {Round}", year, roundNumber);
-                return new List<TipsResponse>();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error fetching tips for Year: {Year}, Round: {Round}", year, roundNumber);
-                return new List<TipsResponse>();
-            }
+            return result ?? new List<TipsResponse>();
         }
 
         [McpServerTool, Description("Get the tips of a particular game")]
         public async Task<List<TipsResponse>> GetTipsByGame(
             [Description("The ID of the game")] int gameId)
         {
-            // Input validation
-            if (gameId <= 0)
+            // Validate parameters using base class method
+            if (!ValidateParameters(
+                ("gameId", gameId, val => IsValidId((int)val), "Game ID must be a positive integer")))
             {
-                _logger.LogWarning("Invalid game ID parameter: {GameId}", gameId);
                 return new List<TipsResponse>();
             }
 
             var endpoint = $"?q=tips;game={gameId}";
-            _logger.LogInformation("Fetching tips for Game ID: {GameId}", gameId);
+            var operationName = $"Tips for Game ID: {gameId}";
 
-            try
-            {
-                var response = await _httpClient.GetAsync(endpoint);
+            var result = await ExecuteApiCallAsync<List<TipsResponse>>(
+                endpoint,
+                operationName,
+                "tips"
+            );
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogError("API request failed. StatusCode: {StatusCode}, Endpoint: {Endpoint}", 
-                        response.StatusCode, endpoint);
-                    return new List<TipsResponse>();
-                }
-
-                var jsonElement = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-                if (!jsonElement.TryGetProperty("tips", out var tipsProperty))
-                {
-                    _logger.LogWarning("No 'tips' property found in API response for Game ID: {GameId}", gameId);
-                    return new List<TipsResponse>();
-                }
-
-                var tipsResponse = JsonSerializer.Deserialize<List<TipsResponse>>(
-                    tipsProperty.GetRawText());
-
-                if (tipsResponse == null || !tipsResponse.Any())
-                {
-                    _logger.LogInformation("No tips found for Game ID: {GameId}", gameId);
-                    return new List<TipsResponse>();
-                }
-
-                _logger.LogInformation("Successfully retrieved {Count} tips for Game ID: {GameId}", 
-                    tipsResponse.Count, gameId);
-                
-                return tipsResponse;
-            }
-            catch (HttpRequestException ex)
-            {
-                _logger.LogError(ex, "Network error fetching tips for Game ID: {GameId}", gameId);
-                return new List<TipsResponse>();
-            }
-            catch (TaskCanceledException ex)
-            {
-                _logger.LogError(ex, "Timeout fetching tips for Game ID: {GameId}", gameId);
-                return new List<TipsResponse>();
-            }
-            catch (JsonException ex)
-            {
-                _logger.LogError(ex, "JSON parsing error for tips Game ID: {GameId}", gameId);
-                return new List<TipsResponse>();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error fetching tips for Game ID: {GameId}", gameId);
-                return new List<TipsResponse>();
-            }
+            return result ?? new List<TipsResponse>();
         }
 
         [McpServerTool, Description("Get the tips for current and future games")]
         public async Task<List<TipsResponse>> GetFutureTips()
         {
             const string endpoint = "?q=tips;complete=!100";
-            _logger.LogInformation("Fetching future tips");
+            const string operationName = "Future Tips";
 
-            try
-            {
-                var response = await _httpClient.GetAsync(endpoint);
+            var result = await ExecuteApiCallAsync<List<TipsResponse>>(
+                endpoint,
+                operationName,
+                "tips"
+            );
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogError("API request failed. StatusCode: {StatusCode}, Endpoint: {Endpoint}", 
-                        response.StatusCode, endpoint);
-                    return new List<TipsResponse>();
-                }
-
-                var jsonElement = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-                if (!jsonElement.TryGetProperty("tips", out var tipsProperty))
-                {
-                    _logger.LogWarning("No 'tips' property found in API response for future tips");
-                    return new List<TipsResponse>();
-                }
-
-                var tipsResponse = JsonSerializer.Deserialize<List<TipsResponse>>(
-                    tipsProperty.GetRawText());
-
-                if (tipsResponse == null || !tipsResponse.Any())
-                {
-                    _logger.LogInformation("No future tips found");
-                    return new List<TipsResponse>();
-                }
-
-                _logger.LogInformation("Successfully retrieved {Count} future tips", tipsResponse.Count);
-                
-                return tipsResponse;
-            }
-            catch (HttpRequestException ex)
-            {
-                _logger.LogError(ex, "Network error fetching future tips");
-                return new List<TipsResponse>();
-            }
-            catch (TaskCanceledException ex)
-            {
-                _logger.LogError(ex, "Timeout fetching future tips");
-                return new List<TipsResponse>();
-            }
-            catch (JsonException ex)
-            {
-                _logger.LogError(ex, "JSON parsing error for future tips");
-                return new List<TipsResponse>();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error fetching future tips");
-                return new List<TipsResponse>();
-            }
+            return result ?? new List<TipsResponse>();
         }
-
-        private static bool IsValidYear(int year) => year >= 1897 && year <= DateTime.Now.Year + 1;
-        private static bool IsValidRound(int round) => round >= 1 && round <= 30;
     }
 }

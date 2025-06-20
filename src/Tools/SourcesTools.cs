@@ -8,143 +8,49 @@ using ModelContextProtocol.Server;
 namespace mcp_afl_server.Tools
 {
     [McpServerToolType]
-    public class SourcesTools
+    public class SourcesTools : BaseAFLTool
     {
-        private readonly HttpClient _httpClient;
-        private readonly ILogger<SourcesTools> _logger;
-
         public SourcesTools(HttpClient httpClient, ILogger<SourcesTools> logger)
+            : base(httpClient, logger)
         {
-            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         [McpServerTool, Description("Gets a list of sources")]
         public async Task<List<SourcesResponse>> GetSources()
         {
             const string endpoint = "?q=sources";
-            _logger.LogInformation("Fetching all sources");
+            const string operationName = "All Sources";
 
-            try
-            {
-                var response = await _httpClient.GetAsync(endpoint);
+            var result = await ExecuteApiCallAsync<List<SourcesResponse>>(
+                endpoint,
+                operationName,
+                "sources"
+            );
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogError("API request failed. StatusCode: {StatusCode}, Endpoint: {Endpoint}", 
-                        response.StatusCode, endpoint);
-                    return new List<SourcesResponse>();
-                }
-
-                var jsonElement = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-                if (!jsonElement.TryGetProperty("sources", out var sourcesProperty))
-                {
-                    _logger.LogWarning("No 'sources' property found in API response");
-                    return new List<SourcesResponse>();
-                }
-
-                var sourcesResponse = JsonSerializer.Deserialize<List<SourcesResponse>>(
-                    sourcesProperty.GetRawText());
-
-                if (sourcesResponse == null || !sourcesResponse.Any())
-                {
-                    _logger.LogInformation("No sources found");
-                    return new List<SourcesResponse>();
-                }
-
-                _logger.LogInformation("Successfully retrieved {Count} sources", sourcesResponse.Count);
-                return sourcesResponse;
-            }
-            catch (HttpRequestException ex)
-            {
-                _logger.LogError(ex, "Network error fetching sources");
-                return new List<SourcesResponse>();
-            }
-            catch (TaskCanceledException ex)
-            {
-                _logger.LogError(ex, "Timeout fetching sources");
-                return new List<SourcesResponse>();
-            }
-            catch (JsonException ex)
-            {
-                _logger.LogError(ex, "JSON parsing error for sources");
-                return new List<SourcesResponse>();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error fetching sources");
-                return new List<SourcesResponse>();
-            }
+            return result ?? new List<SourcesResponse>();
         }
 
         [McpServerTool, Description("Gets a source by ID")]
         public async Task<List<SourcesResponse>> GetSourceById(
             [Description("The ID of the source")] string sourceId)
         {
-            // Input validation
-            if (string.IsNullOrWhiteSpace(sourceId))
+            // Validate parameters using base class method
+            if (!ValidateParameters(
+                ("sourceId", sourceId, val => IsValidString((string)val), "Source ID cannot be null or empty")))
             {
-                _logger.LogWarning("Invalid source ID parameter: source ID cannot be null or empty");
                 return new List<SourcesResponse>();
             }
 
             var endpoint = $"?q=sources;source={Uri.EscapeDataString(sourceId)}";
-            _logger.LogInformation("Fetching source by ID: {SourceId}", sourceId);
+            var operationName = $"Source by ID: {sourceId}";
 
-            try
-            {
-                var response = await _httpClient.GetAsync(endpoint);
+            var result = await ExecuteApiCallAsync<List<SourcesResponse>>(
+                endpoint,
+                operationName,
+                "sources"
+            );
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogError("API request failed. StatusCode: {StatusCode}, Endpoint: {Endpoint}", 
-                        response.StatusCode, endpoint);
-                    return new List<SourcesResponse>();
-                }
-
-                var jsonElement = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-                if (!jsonElement.TryGetProperty("sources", out var sourcesProperty))
-                {
-                    _logger.LogWarning("No 'sources' property found in API response for Source ID: {SourceId}", sourceId);
-                    return new List<SourcesResponse>();
-                }
-
-                var sourcesResponse = JsonSerializer.Deserialize<List<SourcesResponse>>(
-                    sourcesProperty.GetRawText());
-
-                if (sourcesResponse == null || !sourcesResponse.Any())
-                {
-                    _logger.LogInformation("No source found with ID: {SourceId}", sourceId);
-                    return new List<SourcesResponse>();
-                }
-
-                _logger.LogInformation("Successfully retrieved {Count} source(s) for ID: {SourceId}", 
-                    sourcesResponse.Count, sourceId);
-                
-                return sourcesResponse;
-            }
-            catch (HttpRequestException ex)
-            {
-                _logger.LogError(ex, "Network error fetching source by ID: {SourceId}", sourceId);
-                return new List<SourcesResponse>();
-            }
-            catch (TaskCanceledException ex)
-            {
-                _logger.LogError(ex, "Timeout fetching source by ID: {SourceId}", sourceId);
-                return new List<SourcesResponse>();
-            }
-            catch (JsonException ex)
-            {
-                _logger.LogError(ex, "JSON parsing error for source ID: {SourceId}", sourceId);
-                return new List<SourcesResponse>();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unexpected error fetching source by ID: {SourceId}", sourceId);
-                return new List<SourcesResponse>();
-            }
+            return result ?? new List<SourcesResponse>();
         }
     }
 }

@@ -1,0 +1,46 @@
+{
+    "name": "MCP AFL Server (.NET 9)",
+    "image": "mcr.microsoft.com/dotnet/sdk:9.0",
+    // Features to add to the dev container
+    "features": {
+        "ghcr.io/devcontainers/features/github-cli:1": {},
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+        "ghcr.io/devcontainers/features/azure-cli:1": {}
+    },
+    // Configure tool-specific properties
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-dotnettools.csharp",
+                "ms-dotnettools.csdevkit",
+                "ms-vscode.vscode-json",
+                "ms-azuretools.vscode-docker",
+                "ms-azuretools.vscode-bicep"
+            ],
+            "settings": {
+                "dotnet.completion.showCompletionItemsFromUnimportedNamespaces": true,
+                "editor.formatOnSave": true,
+                "files.exclude": {
+                    "**/bin": true,
+                    "**/obj": true
+                }
+            }
+        }
+    },
+    // Forward ports
+    "forwardPorts": [
+        8080,
+        5000,
+        5001
+    ],
+    // Configure container environment
+    "containerEnv": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_CLI_TELEMETRY_OPTOUT": "1"
+    }, // Set the default working directory
+    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+    // Use 'postCreateCommand' to run commands after the container is created
+    "postCreateCommand": "cd src && dotnet restore",
+    // Configure git safety and start the application
+    "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder} && sleep 2 && cd src && nohup dotnet run > /tmp/mcp-afl-server.log 2>&1 &"
+}

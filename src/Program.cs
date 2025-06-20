@@ -10,6 +10,16 @@ using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+            .AllowAnyMethod()
+            .AllowAnyHeader();
+    });
+});
+
 builder.Services.AddMcpServer()
     .WithHttpTransport()
     .WithToolsFromAssembly();
@@ -40,6 +50,8 @@ builder.Services.AddScoped<TeamTools>();
 builder.Services.AddScoped<TipsTools>();
 
 var app = builder.Build();
+
+app.UseCors();
 
 app.MapGet("/api/healthz", () => Results.Ok("Healthy"));
 

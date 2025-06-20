@@ -16,11 +16,11 @@ namespace mcp_afl_server.Tools
         [McpServerTool, Description("Get Power Ranking by Round and Year")]
         public async Task<List<PowerRankingsResponse>> GetPowerRankingByRoundAndYear(
             [Description("The round that has been played")] int roundNumber,
-            [Description("The year of the rankings")] int year)
+            [Description("The year of the rankings (power rankings available from 2022 onwards)")] int year)
         {
             // Validate parameters using base class method
             if (!ValidateParameters(
-                ("year", year, val => IsValidYear((int)val), "Year must be between 1897 and current year + 1"),
+                ("year", year, val => IsValidPowerRankingYear((int)val), "Year must be 2022 or later (power rankings not available before 2022)"),
                 ("roundNumber", roundNumber, val => IsValidRound((int)val), "Round must be between 1 and 30")))
             {
                 return new List<PowerRankingsResponse>();
@@ -41,12 +41,12 @@ namespace mcp_afl_server.Tools
         [McpServerTool, Description("Get Power Ranking by Round, Year, and Model Source")]
         public async Task<List<PowerRankingsResponse>> GetPowerRankingByRoundYearAndSource(
             [Description("The round that has been played")] int roundNumber,
-            [Description("The year of the rankings")] int year,
+            [Description("The year of the rankings (power rankings available from 2022 onwards)")] int year,
             [Description("The source ID of the model")] int sourceId)
         {
             // Validate parameters using base class method
             if (!ValidateParameters(
-                ("year", year, val => IsValidYear((int)val), "Year must be between 1897 and current year + 1"),
+                ("year", year, val => IsValidPowerRankingYear((int)val), "Year must be 2022 or later (power rankings not available before 2022)"),
                 ("roundNumber", roundNumber, val => IsValidRound((int)val), "Round must be between 1 and 30"),
                 ("sourceId", sourceId, val => (int)val > 0, "Source ID must be a positive integer")))
             {
@@ -68,12 +68,12 @@ namespace mcp_afl_server.Tools
         [McpServerTool, Description("Get Power Ranking for Team by Round, Year, and Model Source")]
         public async Task<List<PowerRankingsResponse>> GetTeamPowerRankingByRoundAndYear(
             [Description("The round that has been played")] int roundNumber,
-            [Description("The year of the rankings")] int year,
+            [Description("The year of the rankings (power rankings available from 2022 onwards)")] int year,
             [Description("The Team Id")] int teamId)
         {
             // Validate parameters using base class method
             if (!ValidateParameters(
-                ("year", year, val => IsValidYear((int)val), "Year must be between 1897 and current year + 1"),
+                ("year", year, val => IsValidPowerRankingYear((int)val), "Year must be 2022 or later (power rankings not available before 2022)"),
                 ("roundNumber", roundNumber, val => IsValidRound((int)val), "Round must be between 1 and 30"),
                 ("teamId", teamId, val => (int)val > 0, "Team ID must be a positive integer")))
             {
@@ -91,5 +91,7 @@ namespace mcp_afl_server.Tools
 
             return result ?? new List<PowerRankingsResponse>();
         }
+
+        protected static bool IsValidPowerRankingYear(int year) => year >= 2022 && year <= DateTime.Now.Year + 1;
     }
 }

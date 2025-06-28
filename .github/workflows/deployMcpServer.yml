@@ -11,8 +11,137 @@ permissions:
     pull-requests: write
 
 jobs:
+    test-and-coverage:
+      name: Run Tests and Generate Coverage
+      runs-on: ubuntu-latest
+      defaults:
+        run:
+          working-directory: './test'
+      steps:
+          - uses: actions/checkout@v4
+            name: Checkout code
+
+          - name: Setup .NET
+            uses: actions/setup-dotnet@v4
+            with:
+              dotnet-version: '9.0.x'
+
+          - name: Restore dependencies
+            run: dotnet restore
+
+          - name: Build solution
+            run: dotnet build --configuration Release --no-restore
+
+          - name: Run tests with coverage
+            run: |
+                dotnet test test/mcp-afl-server.UnitTests/mcp-afl-server.UnitTests.csproj \
+                  --configuration Release \
+                  --no-build \
+                  --verbosity normal \
+                  --collect:"XPlat Code Coverage" \
+                  --results-directory ./coverage-results/ \
+                  --logger trx \
+                  --logger "console;verbosity=detailed"
+
+          - name: Generate coverage report
+            run: |
+                dotnet tool install -g dotnet-reportgenerator-globaltool
+                reportgenerator \
+                  -reports:"./coverage-results/**/coverage.cobertura.xml" \
+                  -targetdir:"./coverage-report" \
+                  -reporttypes:"Html;Cobertura;JsonSummary" \
+                  -verbosity:Warning
+
+          - name: Upload coverage reports to artifacts
+            uses: actions/upload-artifact@v4
+            with:
+                name: coverage-report
+                path: ./coverage-report/
+                retention-days: 30
+
+          - name: Comment coverage on PR
+            if: github.event_name == 'pull_request'
+            uses: actions/github-script@v7
+            with:
+              script: |
+                  const fs = require('fs');
+                  const path = './coverage-report/Summary.json';
+                  
+                  if (fs.existsSync(path)) {
+                    const coverage = JSON.parse(fs.readFileSync(path, 'utf8'));
+                    const lineCoverage = coverage.summary.linecoverage;
+                    const branchCoverage = coverage.summary.branchcoverage;
+                    
+                    const coverageComment = `## 📊 Code Coverage Report
+                  
+                  | Metric | Percentage |
+                  |--------|------------|
+                  | **Line Coverage** | ${lineCoverage}% |
+                  | **Branch Coverage** | ${branchCoverage}% |
+                  
+                  📁 [View detailed coverage report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+                  
+                  ${lineCoverage >= 80 ? '✅ Great coverage!' : '⚠️ Consider adding more tests to improve coverage.'}`;
+                    
+                    github.rest.issues.createComment({
+                      issue_number: context.issue.number,
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      body: coverageComment
+                    });
+                  } 
+                    
+          - name: Generate coverage report
+            run: |
+                dotnet tool install -g dotnet-reportgenerator-globaltool
+                reportgenerator \
+                  -reports:"./coverage-results/**/coverage.cobertura.xml" \
+                  -targetdir:"./coverage-report" \
+                  -reporttypes:"Html;Cobertura;JsonSummary" \
+                  -verbosity:Warning
+
+          - name: Upload coverage reports to artifacts
+            uses: actions/upload-artifact@v4
+            with:
+              name: coverage-report
+              path: ./coverage-report/
+              retention-days: 30
+
+          - name: Comment coverage on PR
+            if: github.event_name == 'pull_request'
+            uses: actions/github-script@v7
+            with:
+              script: |
+                  const fs = require('fs');
+                  const path = './coverage-report/Summary.json';
+                  
+                  if (fs.existsSync(path)) {
+                    const coverage = JSON.parse(fs.readFileSync(path, 'utf8'));
+                    const lineCoverage = coverage.summary.linecoverage;
+                    const branchCoverage = coverage.summary.branchcoverage;
+                    
+                    const coverageComment = `## 📊 Code Coverage Report
+                  
+                  | Metric | Percentage |
+                  |--------|------------|
+                  | **Line Coverage** | ${lineCoverage}% |
+                  | **Branch Coverage** | ${branchCoverage}% |
+                  
+                  📁 [View detailed coverage report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+                  
+                  ${lineCoverage >= 80 ? '✅ Great coverage!' : '⚠️ Consider adding more tests to improve coverage.'}`;
+                    
+                    github.rest.issues.createComment({
+                      issue_number: context.issue.number,
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      body: coverageComment
+                    });
+                  }
+        
     build-container-image:
         name: Build Docker Image
+        needs: test-and-coverage
         runs-on: ubuntu-latest
         outputs:
             loginServer: ${{ steps.getacrserver.outputs.loginServer }}
@@ -58,7 +187,7 @@ jobs:
 
     lint-bicep:
         name: Run Bicep Linter
-        needs: build-container-image
+        needs: test-and-coverage
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4

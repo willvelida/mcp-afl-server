@@ -56,7 +56,9 @@ jobs:
         - name: Merge Code Coverage reports
           run: |
                 dotnet tool install -g dotnet-reportgenerator-globaltool
-                reportgenerator "-reports:${{ needs.env-setup.outputs.coverage-path }}/**/coverage.cobertura.xml" "-targetdir:${{ needs.env-setup.outputs.coverage-path }}" -reporttypes:Cobertura
+                reportgenerator "-reports:${{ needs.env-setup.outputs.coverage-path }}/**/coverage.cobertura.xml" "-targetdir:${{ needs.env-setup.outputs.coverage-path }}/report" -reporttypes:Cobertura
+                # Copy the main report to the expected location
+                cp "${{ needs.env-setup.outputs.coverage-path }}/report/Cobertura.xml" "${{ needs.env-setup.outputs.coverage-path }}/Cobertura.xml"
 
         - name: Code Coverage Report
           uses: irongut/CodeCoverageSummary@v1.3.0

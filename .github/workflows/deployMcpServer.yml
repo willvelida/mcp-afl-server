@@ -10,9 +10,6 @@ permissions:
     id-token: write
     pull-requests: write
 
-env:
-  COVERAGE_PATH: ${{ github.workspace }}/coverage
-
 jobs:
     test-and-coverage:
       name: Run Tests and Generate Coverage
@@ -27,31 +24,46 @@ jobs:
               dotnet-version: '9.0.x'
 
           - name: Restore dependencies
-            run: dotnet restore ./src/mcp-afl-server.sln
+            run: dotnet restore src/mcp-afl-server.sln
 
           - name: Build solution
-            run: dotnet build ./src/mcp-afl-server.sln --configuration Release --no-restore
+            run: dotnet build src/mcp-afl-server.sln --configuration Release --no-restore
 
-          - name: Run unit tests
-            run: dotnet test ./test/mcp-afl-server.UnitTests/mcp-afl-server.UnitTests.csproj --no-build --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory ${{ env.COVERAGE_PATH }}
-
-          - name: Merge Code Coverage reports
+          - name: Run tests with coverage
             run: |
-              dotnet tool install -g dotnet-reportgenerator-globaltool
-              reportgenerator "-reports:${{ env.COVERAGE_PATH }}/**/coverage.cobertura.xml" "-targetdir:${{ env.COVERAGE_PATH }}" -reporttypes:Cobertura
+                dotnet test test/mcp-afl-server.UnitTests/mcp-afl-server.UnitTests.csproj \
+                  --configuration Release \
+                  --no-build \
+                  --verbosity normal \
+                  --collect:"XPlat Code Coverage" \
+                  --results-directory ./TestResults \
+                  --logger trx \
+                  --logger "console;verbosity=detailed" \
+                  -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
-          - name: Code Coverage Report
-            uses: irongut/CodeCoverageSummary@v1.3.0
+          - name: Debug - List test results directory
+            run: |
+              echo "Contents of TestResults directory:"
+              find ./TestResults -type f -name "*.xml" -o -name "*.cobertura" -o -name "*coverage*" | head -20
+              echo "All files in TestResults:"
+              ls -la ./TestResults/ || echo "TestResults directory not found"
+              find ./TestResults -name "*coverage*" -type f || echo "No coverage files found"
+
+          - name: Generate coverage report
+            run: |
+                dotnet tool install -g dotnet-reportgenerator-globaltool
+                reportgenerator \
+                  -reports:"./TestResults/**/coverage.cobertura.xml" \
+                  -targetdir:"./coverage-report" \
+                  -reporttypes:"Html;Cobertura;JsonSummary" \
+                  -verbosity:Warning
+
+          - name: Upload coverage reports to artifacts
+            uses: actions/upload-artifact@v4
             with:
-                  filename: coverage/Cobertura.xml
-                  badge: true
-                  fail_below_min: false
-                  format: markdown
-                  hide_branch_rate: false
-                  hide_complexity: true
-                  indicators: true
-                  output: both
-                  thresholds: '60 80'
+                name: coverage-report
+                path: ./coverage-report/
+                retention-days: 30
 
           - name: Comment coverage on PR
             if: github.event_name == 'pull_request'
@@ -59,7 +71,7 @@ jobs:
             with:
               script: |
                   const fs = require('fs');
-                  const path = '${{ env.COVERAGE_PATH }}/Summary.json';
+                  const path = './coverage-report/Summary.json';
                   
                   if (fs.existsSync(path)) {
                     const coverage = JSON.parse(fs.readFileSync(path, 'utf8'));
@@ -83,7 +95,9 @@ jobs:
                       repo: context.repo.repo,
                       body: coverageComment
                     });
-                  }                   
+                  } else {
+                    console.log('Summary.json not found - coverage report may not have been generated');
+                  }
         
     build-container-image:
         name: Build Docker Image
@@ -117,7 +131,7 @@ jobs:
             - name: Get ACR Server
               id: getacrserver
               run: |
-                loginServer=$(az acr list --resource-group ${{ secrets.RG_NAME }} --query "[0].loginServer" -o tsv)
+                loginServer=$(az acr list --resource-group ${{ secrets.RG_NAME }} --query "[0].name" -o tsv)
                 echo "loginServer=$loginServer" >> "$GITHUB_OUTPUT"
                 
             - name: Login to Azure Container Registry
@@ -227,4 +241,4 @@ jobs:
                 parameters-file: './infra/parameters.deployMcpServer.bicepparam'
                 parameters: '{"imageName": "${{ needs.build-container-image.outputs.loginServer}}/afl-mcp-server:${{ github.sha }}"}'
 
-            
+

@@ -10,9 +10,27 @@ permissions:
     id-token: write
     pull-requests: write
 
+env:
+  DOTNET_VERSION: 9.0.x
+  COVERAGE_PATH: ${{ github.workspace }}/coverage
+
 jobs:
+    env-setup:
+        name: Setup Environment
+        runs-on: ubuntu-latest
+        outputs:
+          dotnet-version: ${{ steps.set-output-defaults.outputs.dotnet-version }}
+          coverage-path: ${{ steps.set-output-defaults.outputs.coverage-path }}
+        steps:
+          - name: set outputs with default values
+            id: set-output-defaults
+            run: |
+              echo "dotnet-version=${{ env.DOTNET_VERSION }}" >> "$GITHUB_OUTPUT"
+              echo "coverage-path=${{ env.COVERAGE_PATH }}" >> "$GITHUB_OUTPUT"
+
     test-and-coverage:
       name: Run Tests and Generate Coverage
+      needs: env-setup
       runs-on: ubuntu-latest
       steps:
           - uses: actions/checkout@v4
@@ -21,7 +39,7 @@ jobs:
           - name: Setup .NET
             uses: actions/setup-dotnet@v4
             with:
-              dotnet-version: '9.0.x'
+              dotnet-version: ${{ needs.env-setup.outputs.dotnet-version }}
 
           - name: Restore dependencies
             run: dotnet restore src/mcp-afl-server.sln
@@ -29,41 +47,26 @@ jobs:
           - name: Build solution
             run: dotnet build src/mcp-afl-server.sln --configuration Release --no-restore
 
-          - name: Run tests with coverage
-            run: |
-                dotnet test test/mcp-afl-server.UnitTests/mcp-afl-server.UnitTests.csproj \
-                  --configuration Release \
-                  --no-build \
-                  --verbosity normal \
-                  --collect:"XPlat Code Coverage" \
-                  --results-directory ./TestResults \
-                  --logger trx \
-                  --logger "console;verbosity=detailed" \
-                  -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+          - name: Run unit tests
+            run: dotnet test --no-build --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory ${{ needs.env-setup.outputs.dotnet-version }}
 
-          - name: Debug - List test results directory
+          - name: Merge Code Coverage reports
             run: |
-              echo "Contents of TestResults directory:"
-              find ./TestResults -type f -name "*.xml" -o -name "*.cobertura" -o -name "*coverage*" | head -20
-              echo "All files in TestResults:"
-              ls -la ./TestResults/ || echo "TestResults directory not found"
-              find ./TestResults -name "*coverage*" -type f || echo "No coverage files found"
+                  dotnet tool install -g dotnet-reportgenerator-globaltool
+                  reportgenerator "-reports:${{ needs.env-setup.outputs.dotnet-version }}/**/coverage.cobertura.xml" "-targetdir:${{ needs.env-setup.outputs.dotnet-version }}" -reporttypes:Cobertura
 
-          - name: Generate coverage report
-            run: |
-                dotnet tool install -g dotnet-reportgenerator-globaltool
-                reportgenerator \
-                  -reports:"./TestResults/**/coverage.cobertura.xml" \
-                  -targetdir:"./coverage-report" \
-                  -reporttypes:"Html;Cobertura;JsonSummary" \
-                  -verbosity:Warning
-
-          - name: Upload coverage reports to artifacts
-            uses: actions/upload-artifact@v4
+          - name: Code Coverage Report
+            uses: irongut/CodeCoverageSummary@v1.3.0
             with:
-                name: coverage-report
-                path: ./coverage-report/
-                retention-days: 30
+                  filename: coverage/Cobertura.xml
+                  badge: true
+                  fail_below_min: false
+                  format: markdown
+                  hide_branch_rate: false
+                  hide_complexity: true
+                  indicators: true
+                  output: both
+                  thresholds: '60 80'
 
           - name: Comment coverage on PR
             if: github.event_name == 'pull_request'

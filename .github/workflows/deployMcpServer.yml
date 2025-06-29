@@ -70,40 +70,6 @@ jobs:
                 indicators: true
                 output: both
                 thresholds: '60 80'
-
-        - name: Comment coverage on PR
-          if: github.event_name == 'pull_request'
-          uses: actions/github-script@v7
-          with:
-            script: |
-                const fs = require('fs');
-                const path = '${{ needs.env-setup.outputs.coverage-path }}/Summary.json';
-                
-                if (fs.existsSync(path)) {
-                  const coverage = JSON.parse(fs.readFileSync(path, 'utf8'));
-                  const lineCoverage = coverage.summary.linecoverage;
-                  const branchCoverage = coverage.summary.branchcoverage;
-                  
-                  const coverageComment = `## 📊 Code Coverage Report
-                
-                | Metric | Percentage |
-                |--------|------------|
-                | **Line Coverage** | ${lineCoverage}% |
-                | **Branch Coverage** | ${branchCoverage}% |
-                
-                📁 [View detailed coverage report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-                
-                ${lineCoverage >= 80 ? '✅ Great coverage!' : '⚠️ Consider adding more tests to improve coverage.'}`;
-                  
-                  github.rest.issues.createComment({
-                    issue_number: context.issue.number,
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    body: coverageComment
-                  });
-                } else {
-                  console.log('Summary.json not found - coverage report may not have been generated');
-                }
         
     build-container-image:
         name: Build Docker Image
@@ -137,7 +103,7 @@ jobs:
             - name: Get ACR Server
               id: getacrserver
               run: |
-                loginServer=$(az acr list --resource-group ${{ secrets.RG_NAME }} --query "[0].name" -o tsv)
+                loginServer=$(az acr list --resource-group ${{ secrets.RG_NAME }} --query "[0].loginServer" -o tsv)
                 echo "loginServer=$loginServer" >> "$GITHUB_OUTPUT"
                 
             - name: Login to Azure Container Registry

@@ -10,6 +10,9 @@ permissions:
     id-token: write
     pull-requests: write
 
+env:
+  COVERAGE_PATH: ${{ github.workspace }}/coverage
+
 jobs:
     test-and-coverage:
       name: Run Tests and Generate Coverage
@@ -29,32 +32,26 @@ jobs:
           - name: Build solution
             run: dotnet build ./src/mcp-afl-server.sln --configuration Release --no-restore
 
-          - name: Run tests with coverage
-            run: |
-                dotnet test ./test/mcp-afl-server.UnitTests/mcp-afl-server.UnitTests.csproj \
-                  --configuration Release \
-                  --no-build \
-                  --verbosity normal \
-                  --collect:"XPlat Code Coverage" \
-                  --results-directory ./coverage-results/ \
-                  --logger trx \
-                  --logger "console;verbosity=detailed"
+          - name: Run unit tests
+            run: dotnet test --no-build --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory ${{ env.COVERAGE_PATH }}
 
-          - name: Generate coverage report
+          - name: Merge Code Coverage reports
             run: |
-                dotnet tool install -g dotnet-reportgenerator-globaltool
-                reportgenerator \
-                  -reports:"./coverage-results/**/coverage.cobertura.xml" \
-                  -targetdir:"./coverage-report" \
-                  -reporttypes:"Html;Cobertura;JsonSummary" \
-                  -verbosity:Warning
+              dotnet tool install -g dotnet-reportgenerator-globaltool
+              reportgenerator "-reports:${{ env.COVERAGE_PATH }}/**/coverage.cobertura.xml" "-targetdir:${{ env.COVERAGE_PATH }}" -reporttypes:Cobertura
 
-          - name: Upload coverage reports to artifacts
-            uses: actions/upload-artifact@v4
+          - name: Code Coverage Report
+            uses: irongut/CodeCoverageSummary@v1.3.0
             with:
-                name: coverage-report
-                path: ./coverage-report/
-                retention-days: 30
+                  filename: coverage/Cobertura.xml
+                  badge: true
+                  fail_below_min: false
+                  format: markdown
+                  hide_branch_rate: false
+                  hide_complexity: true
+                  indicators: true
+                  output: both
+                  thresholds: '60 80'
 
           - name: Comment coverage on PR
             if: github.event_name == 'pull_request'
@@ -62,7 +59,7 @@ jobs:
             with:
               script: |
                   const fs = require('fs');
-                  const path = './coverage-report/Summary.json';
+                  const path = '${{ env.COVERAGE_PATH }}/Summary.json';
                   
                   if (fs.existsSync(path)) {
                     const coverage = JSON.parse(fs.readFileSync(path, 'utf8'));

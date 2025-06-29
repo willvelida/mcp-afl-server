@@ -57,6 +57,15 @@ module containerAppEnvironment 'host/containerAppEnvironment.bicep' = {
   }
 }
 
+module mcpEntraApp 'apim/mcp-entra-app.bicep' = {
+  scope: resourceGroup
+  name: 'mcpEntraApp'
+  params: {
+    baseName: baseName
+    uaiName: uaiName
+  }
+}
+
 module apim 'apim/apim.bicep' = {
   scope: resourceGroup
   name: 'apim'
@@ -71,6 +80,7 @@ module apim 'apim/apim.bicep' = {
 
 module mcpServer 'host/mcpServer.bicep' = {
   scope: resourceGroup
+  name: 'mcpServer'
   params: {
     tags: tags
     appInsightsName: appInsights.outputs.name 
@@ -80,15 +90,6 @@ module mcpServer 'host/mcpServer.bicep' = {
     uaiName: uaiName
     imageName: imageName
     entraAppClientId: mcpEntraApp.outputs.mcpAppId
-  }
-}
-
-module mcpEntraApp 'apim/mcp-entra-app.bicep' = {
-  scope: resourceGroup
-  name: 'mcpEntraApp'
-  params: {
-    baseName: baseName
-    uaiName: uaiName
   }
 }
 

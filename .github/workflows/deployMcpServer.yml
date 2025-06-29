@@ -33,7 +33,7 @@ jobs:
             run: dotnet build ./src/mcp-afl-server.sln --configuration Release --no-restore
 
           - name: Run unit tests
-            run: dotnet test ./test/mcp-afl-server.UnitTests/* --no-build --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory ${{ env.COVERAGE_PATH }}
+            run: dotnet test ./test/mcp-afl-server.UnitTests/mcp-afl-server.UnitTests.csproj --no-build --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory ${{ env.COVERAGE_PATH }}
 
           - name: Merge Code Coverage reports
             run: |

@@ -23,7 +23,7 @@ resource uai 'Microsoft.ManagedIdentity/userAssignedIdentities@2025-01-31-previe
 
 var appName = 'app-${baseName}-${environmentName}'
 var loginEndpoint = environment().authentication.loginEndpoint
-var issuer = '${loginEndpoint}/${tenantId}/v2.0'
+var issuer = '${loginEndpoint}${tenantId}/v2.0'
 
 resource mcpEntraApp 'Microsoft.Graph/applications@v1.0' = {
   displayName: appName

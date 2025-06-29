@@ -105,7 +105,7 @@ resource mcpHealthCheckOperation 'Microsoft.ApiManagement/service/apis/operation
   properties: {
     displayName: 'MCP Health Check'
     method: 'GET'
-    urlTemplate: '/api/healtz'
+    urlTemplate: '/api/healthz'
     description: 'Health Check endpoint for AFL MCP Server'
   }
 }

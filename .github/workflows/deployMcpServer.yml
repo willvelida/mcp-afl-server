@@ -182,7 +182,7 @@ jobs:
                 name: ${{ github.run_number }}
                 template-file: './infra/deployMcpServer.bicep'
                 parameters-file: './infra/parameters.deployMcpServer.bicepparam'
-                parameters: '{"imageName": "${{ needs.build-container-image.outputs.loginServer}}/afl-mcp-server:${{ github.sha }}"}'
+                parameters: '{"imageName": "${{ needs.build-container-image.outputs.loginServer}}/afl-mcp-server:${{ github.sha }}", "emailAddress": "${{ secrets.EMAIL_ADDRESS }}"}'
 
     deploy-mcp-server:
         name: Deploy MCP Server
@@ -211,6 +211,6 @@ jobs:
                 name: ${{ github.run_number }}
                 template-file: './infra/deployMcpServer.bicep'
                 parameters-file: './infra/parameters.deployMcpServer.bicepparam'
-                parameters: '{"imageName": "${{ needs.build-container-image.outputs.loginServer}}/afl-mcp-server:${{ github.sha }}"}'
+                parameters: '{"imageName": "${{ needs.build-container-image.outputs.loginServer}}/afl-mcp-server:${{ github.sha }}", "emailAddress": "${{ secrets.EMAIL_ADDRESS }}"}'
 
 

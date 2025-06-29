@@ -15,6 +15,12 @@ param uaiName string
 @description('The container image that the MCP server will use')
 param imageName string
 
+@description('The email address of the publisher')
+param emailAddress string
+
+@description('The name of the publisher')
+param publisherName string
+
 var rgName = 'rg-${baseName}'
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' existing = {
@@ -48,6 +54,18 @@ module containerAppEnvironment 'host/containerAppEnvironment.bicep' = {
     appInsightsName: appInsights.outputs.name 
     baseName: baseName
     lawName: logAnalytics.outputs.name
+  }
+}
+
+module apim 'apim/apim.bicep' = {
+  scope: resourceGroup
+  name: 'apim'
+  params: {
+    tags: tags
+    appInsightsName: appInsights.outputs.name
+    baseName: baseName
+    emailAddress: emailAddress
+    publisherName: publisherName
   }
 }
 

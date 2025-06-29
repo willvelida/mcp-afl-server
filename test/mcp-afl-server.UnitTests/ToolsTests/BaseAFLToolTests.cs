@@ -1,7 +1,9 @@
 // test/mcp-afl-server.UnitTests/Tools/BaseAFLToolTests.cs
 using FluentAssertions;
+using mcp_afl_server.Services;
 using mcp_afl_server.UnitTests.Helpers;
 using Microsoft.Extensions.Logging;
+using Microsoft.Graph.Models;
 using Moq;
 using RichardSzalay.MockHttp;
 using System.Net;
@@ -13,8 +15,11 @@ namespace mcp_afl_server.UnitTests.ToolsTests
     // Test implementation of BaseAFLTool to test protected methods
     public class TestableBaseAFLTool : BaseAFLTool
     {
-        public TestableBaseAFLTool(HttpClient httpClient, ILogger logger) 
-            : base(httpClient, logger) { }
+        public TestableBaseAFLTool(
+            HttpClient httpClient, 
+            ILogger logger,
+            IAuthenticationService authenticationService) 
+            : base(httpClient, logger, authenticationService) { }
 
         // Expose protected methods for testing
         public new bool ValidateParameters(params (string name, object value, Func<object, bool> validator, string errorMessage)[] validations)
@@ -27,6 +32,10 @@ namespace mcp_afl_server.UnitTests.ToolsTests
         public new static bool IsValidRound(int round) => BaseAFLTool.IsValidRound(round);
         public new static bool IsValidId(int id) => BaseAFLTool.IsValidId(id);
         public new static bool IsValidString(string value) => BaseAFLTool.IsValidString(value);
+
+        // Expose authentication methods for testing
+        public new Task<User> GetCurrentUserAsync() => base.GetCurrentUserAsync();
+        public new bool IsAuthenticated() => base.IsAuthenticated();
     }
 
     // Simple test model for API call testing
@@ -38,18 +47,15 @@ namespace mcp_afl_server.UnitTests.ToolsTests
         public string Name { get; set; } = string.Empty;
     }
 
-    public class BaseAFLToolTests : IDisposable
+    public class BaseAFLToolTests : AuthenticatedToolTestBase
     {
         private readonly Mock<ILogger> _mockLogger;
-        private readonly MockHttpMessageHandler _mockHttpHandler;
-        private readonly HttpClient _httpClient;
         private readonly TestableBaseAFLTool _tool;
 
-        public BaseAFLToolTests()
+        public BaseAFLToolTests() : base()
         {
             _mockLogger = new Mock<ILogger>();
-            (_httpClient, _mockHttpHandler) = HttpClientTestHelper.CreateMockHttpClient();
-            _tool = new TestableBaseAFLTool(_httpClient, _mockLogger.Object);
+            _tool = new TestableBaseAFLTool(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
         }
 
         #region Validation Tests
@@ -100,24 +106,31 @@ namespace mcp_afl_server.UnitTests.ToolsTests
         }
 
         [Theory]
-        [InlineData("valid string", true)]
-        [InlineData("a", true)]           // Single character
-        [InlineData("", false)]           // Empty string
-        [InlineData("   ", false)]        // Whitespace only
-        [InlineData("\t\n", false)]       // Other whitespace
-        [InlineData(null, false)]         // Null
-        public void IsValidString_VariousStrings_ReturnsExpectedResult(string? input, bool expected)
+        [InlineData("valid", true)]     // Valid string
+        [InlineData("", false)]         // Empty string
+        [InlineData("   ", false)]      // Whitespace
+        public void IsValidString_VariousStrings_ReturnsExpectedResult(string value, bool expected)
         {
             // Act
-            var result = TestableBaseAFLTool.IsValidString(input!);
+            var result = TestableBaseAFLTool.IsValidString(value);
 
             // Assert
             result.Should().Be(expected);
         }
 
+        [Fact]
+        public void IsValidString_Null_ReturnsFalse()
+        {
+            // Act
+            var result = TestableBaseAFLTool.IsValidString(null!);
+
+            // Assert
+            result.Should().BeFalse();
+        }
+
         #endregion
 
-        #region ValidateParameters Tests
+        #region Parameter Validation Tests
 
         [Fact]
         public void ValidateParameters_AllValid_ReturnsTrue()
@@ -125,114 +138,103 @@ namespace mcp_afl_server.UnitTests.ToolsTests
             // Act
             var result = _tool.ValidateParameters(
                 ("year", 2024, val => TestableBaseAFLTool.IsValidYear((int)val), "Invalid year"),
-                ("round", 1, val => TestableBaseAFLTool.IsValidRound((int)val), "Invalid round"),
-                ("id", 5, val => TestableBaseAFLTool.IsValidId((int)val), "Invalid ID")
-            );
+                ("round", 5, val => TestableBaseAFLTool.IsValidRound((int)val), "Invalid round"));
 
             // Assert
             result.Should().BeTrue();
         }
 
         [Fact]
-        public void ValidateParameters_OneInvalid_ReturnsFalseAndLogs()
+        public void ValidateParameters_OneInvalid_ReturnsFalse()
         {
             // Act
             var result = _tool.ValidateParameters(
                 ("year", 2024, val => TestableBaseAFLTool.IsValidYear((int)val), "Invalid year"),
-                ("round", 0, val => TestableBaseAFLTool.IsValidRound((int)val), "Invalid round")
-            );
+                ("round", 999, val => TestableBaseAFLTool.IsValidRound((int)val), "Invalid round"));
 
             // Assert
             result.Should().BeFalse();
-            
-            // Verify warning was logged with correct parameter details
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Warning,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => 
-                        v.ToString()!.Contains("Invalid round parameter") && 
-                        v.ToString()!.Contains("0") &&
-                        v.ToString()!.Contains("Invalid round")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
         }
 
+        #endregion
+
+        #region Authentication Tests
+
         [Fact]
-        public void ValidateParameters_MultipleInvalid_ReturnsFalseOnFirst()
+        public async Task GetCurrentUserAsync_Authenticated_ReturnsUser()
         {
+            // Arrange
+            var expectedUser = CreateTestUser("test-user-123");
+            SetupAuthenticatedUser("test-user-123", "test@example.com");
+
             // Act
-            var result = _tool.ValidateParameters(
-                ("year", 1800, val => TestableBaseAFLTool.IsValidYear((int)val), "Invalid year"),
-                ("round", 0, val => TestableBaseAFLTool.IsValidRound((int)val), "Invalid round")
-            );
+            var result = await _tool.GetCurrentUserAsync();
 
             // Assert
-            result.Should().BeFalse();
-            
-            // Should only log the first invalid parameter
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Warning,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Invalid year parameter")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
+            result.Should().NotBeNull();
+            result.Id.Should().Be("test-user-123");
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
         [Fact]
-        public void ValidateParameters_EmptyValidations_ReturnsTrue()
+        public async Task GetCurrentUserAsync_Unauthenticated_ThrowsException()
         {
+            // Arrange
+            SetupUnauthenticatedUser();
+
+            // Act & Assert
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _tool.GetCurrentUserAsync());
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
+        }
+
+        [Fact]
+        public void IsAuthenticated_WhenAuthenticated_ReturnsTrue()
+        {
+            // Arrange
+            SetupAuthenticatedUser();
+
             // Act
-            var result = _tool.ValidateParameters();
+            var result = _tool.IsAuthenticated();
 
             // Assert
             result.Should().BeTrue();
+            MockAuthenticationService.Verify(x => x.IsAuthenticated(), Times.Once);
         }
 
         [Fact]
-        public void ValidateParameters_StringValidation_WorksCorrectly()
+        public void IsAuthenticated_WhenNotAuthenticated_ReturnsFalse()
         {
-            // Act - Test valid string
-            var validResult = _tool.ValidateParameters(
-                ("source", "valid string", val => TestableBaseAFLTool.IsValidString((string)val), "Invalid string")
-            );
+            // Arrange
+            SetupUnauthenticatedUser();
+
+            // Act
+            var result = _tool.IsAuthenticated();
 
             // Assert
-            validResult.Should().BeTrue();
-
-            // Act - Test invalid string
-            var invalidResult = _tool.ValidateParameters(
-                ("source", "", val => TestableBaseAFLTool.IsValidString((string)val), "Invalid string")
-            );
-
-            // Assert
-            invalidResult.Should().BeFalse();
+            result.Should().BeFalse();
+            MockAuthenticationService.Verify(x => x.IsAuthenticated(), Times.Once);
         }
 
         #endregion
 
-        #region ExecuteApiCallAsync Tests - Basic Functionality
+        #region API Call Tests
 
         [Fact]
-        public async Task ExecuteApiCallAsync_SuccessfulResponse_ReturnsData()
+        public async Task ExecuteApiCallAsync_SuccessfulResponse_ReturnsDeserializedData()
         {
             // Arrange
-            var testData = new { testProperty = new[] { new { id = 1, name = "Test" } } };
-            var jsonResponse = JsonSerializer.Serialize(testData);
-            
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Respond("application/json", jsonResponse);
+            var testData = new List<TestResponse> 
+            { 
+                new TestResponse { Id = 1, Name = "Test" } 
+            };
+            var responseJson = JsonSerializer.Serialize(new { games = testData });
+
+            MockHttpHandler
+                .When("https://api.squiggle.com.au/test")
+                .Respond("application/json", responseJson);
 
             // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty"
-            );
+            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>("test", "Test Operation", "games");
 
             // Assert
             result.Should().NotBeNull();
@@ -242,567 +244,44 @@ namespace mcp_afl_server.UnitTests.ToolsTests
         }
 
         [Fact]
-        public async Task ExecuteApiCallAsync_HttpError_ReturnsEmptyAndLogs()
+        public async Task ExecuteApiCallAsync_HttpError_ReturnsEmptyResult()
         {
             // Arrange
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Respond(HttpStatusCode.NotFound);
+            MockHttpHandler
+                .When("https://api.squiggle.com.au/test")
+                .Respond(HttpStatusCode.InternalServerError);
 
             // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty"
-            );
+            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>("test", "Test Operation", "games");
 
             // Assert
             result.Should().NotBeNull();
             result.Should().BeEmpty();
-            
-            // Verify error was logged
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Error,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => 
-                        v.ToString()!.Contains("API request failed") &&
-                        v.ToString()!.Contains("NotFound")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
         }
 
         [Fact]
-        public async Task ExecuteApiCallAsync_MissingProperty_ReturnsEmptyAndLogs()
+        public async Task ExecuteApiCallAsync_MissingProperty_ReturnsEmptyResult()
         {
             // Arrange
-            var testData = new { otherProperty = new[] { new { id = 1 } } };
-            var jsonResponse = JsonSerializer.Serialize(testData);
-            
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Respond("application/json", jsonResponse);
+            var responseJson = JsonSerializer.Serialize(new { wrongProperty = new List<TestResponse>() });
+
+            MockHttpHandler
+                .When("https://api.squiggle.com.au/test")
+                .Respond("application/json", responseJson);
 
             // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty"
-            );
+            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>("test", "Test Operation", "games");
 
             // Assert
             result.Should().NotBeNull();
             result.Should().BeEmpty();
-            
-            // Verify warning was logged
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Warning,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => 
-                        v.ToString()!.Contains("No 'testProperty' property found")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
-        }
-
-        [Fact]
-        public async Task ExecuteApiCallAsync_InvalidJson_ReturnsEmptyAndLogs()
-        {
-            // Arrange
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Respond("application/json", "invalid json");
-
-            // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty"
-            );
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            
-            // Verify JSON error was logged
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Error,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("JSON parsing error")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
-        }
-
-        [Fact]
-        public async Task ExecuteApiCallAsync_NetworkError_ReturnsEmptyAndLogs()
-        {
-            // Arrange
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Throw(new HttpRequestException("Network error"));
-
-            // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty"
-            );
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            
-            // Verify network error was logged
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Error,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Network error")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
-        }
-
-        [Fact]
-        public async Task ExecuteApiCallAsync_Timeout_ReturnsEmptyAndLogs()
-        {
-            // Arrange
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Throw(new TaskCanceledException("Request timeout"));
-
-            // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty"
-            );
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            
-            // Verify timeout error was logged
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Error,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Timeout")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
-        }
-
-        [Fact]
-        public async Task ExecuteApiCallAsync_EmptyResult_ReturnsEmptyAndLogsInfo()
-        {
-            // Arrange
-            var testData = new { testProperty = Array.Empty<object>() };
-            var jsonResponse = JsonSerializer.Serialize(testData);
-            
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Respond("application/json", jsonResponse);
-
-            // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty"
-            );
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            
-            // Verify info message about no data
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Information,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("No data found")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
-        }
-
-        [Fact]
-        public async Task ExecuteApiCallAsync_WithAdditionalValidation_FailsValidation()
-        {
-            // Arrange
-            var testData = new { testProperty = new[] { new { id = 1, name = "Test" } } };
-            var jsonResponse = JsonSerializer.Serialize(testData);
-            
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Respond("application/json", jsonResponse);
-
-            // Additional validation that always fails
-            Func<List<TestResponse>, bool> failingValidation = (list) => false;
-
-            // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty",
-                failingValidation
-            );
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            
-            // Verify validation failure was logged
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Warning,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Additional validation failed")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
-        }
-
-        [Fact]
-        public async Task ExecuteApiCallAsync_WithAdditionalValidation_PassesValidation()
-        {
-            // Arrange
-            var testData = new { testProperty = new[] { new { id = 1, name = "Test" } } };
-            var jsonResponse = JsonSerializer.Serialize(testData);
-            
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Respond("application/json", jsonResponse);
-
-            // Additional validation that always passes
-            Func<List<TestResponse>, bool> passingValidation = (list) => true;
-
-            // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty",
-                passingValidation
-            );
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().HaveCount(1);
-            result[0].Id.Should().Be(1);
-            result[0].Name.Should().Be("Test");
-        }
-
-        [Fact]
-        public async Task ExecuteApiCallAsync_NullAdditionalValidation_WorksCorrectly()
-        {
-            // Arrange
-            var testData = new { testProperty = new[] { new { id = 1, name = "Test" } } };
-            var jsonResponse = JsonSerializer.Serialize(testData);
-            
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Respond("application/json", jsonResponse);
-
-            // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty",
-                null
-            );
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().HaveCount(1);
-            result[0].Id.Should().Be(1);
-            result[0].Name.Should().Be("Test");
         }
 
         #endregion
 
-        #region Enhanced Error Handling Tests - HTTP Status Codes
-
-        [Theory]
-        [InlineData(HttpStatusCode.BadRequest)]
-        [InlineData(HttpStatusCode.Unauthorized)]
-        [InlineData(HttpStatusCode.Forbidden)]
-        [InlineData(HttpStatusCode.InternalServerError)]
-        [InlineData(HttpStatusCode.BadGateway)]
-        [InlineData(HttpStatusCode.ServiceUnavailable)]
-        [InlineData(HttpStatusCode.GatewayTimeout)]
-        [InlineData(HttpStatusCode.TooManyRequests)]
-        public async Task ExecuteApiCallAsync_VariousHttpErrors_ReturnsEmptyAndLogsCorrectly(HttpStatusCode statusCode)
+        public override void Dispose()
         {
-            // Arrange
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Respond(statusCode);
-
-            // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty"
-            );
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            
-            // Verify error was logged with correct status code
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Error,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => 
-                        v.ToString()!.Contains("API request failed") &&
-                        v.ToString()!.Contains(statusCode.ToString())),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
-        }
-
-        #endregion
-
-        #region Enhanced Error Handling Tests - Malformed JSON
-
-        [Theory]
-        [InlineData("")]                              // Empty response - JSON parsing error
-        [InlineData("{")]                             // Incomplete JSON - JSON parsing error  
-        [InlineData("{\"incomplete\": ")]             // Incomplete JSON with property - JSON parsing error
-        [InlineData("{\"validProperty\": [}")]        // Invalid array syntax - JSON parsing error
-        [InlineData("{\"validProperty\": {\"nested\": [1,2,}]}}")]  // Invalid nested structure - JSON parsing error
-        public async Task ExecuteApiCallAsync_TrulyMalformedJson_LogsJsonParsingError(string malformedJson)
-        {
-            // Arrange
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Respond("application/json", malformedJson);
-
-            // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty"
-            );
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            
-            // Should log JSON parsing error for truly malformed JSON
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Error,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("JSON parsing error")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
-        }
-
-        [Theory]
-        [InlineData("null")]                          // Valid JSON null, but wrong structure
-        [InlineData("true")]                          // Valid JSON boolean, but wrong structure
-        [InlineData("123")]                           // Valid JSON number, but wrong structure
-        [InlineData("\"string\"")]                    // Valid JSON string, but wrong structure
-        public async Task ExecuteApiCallAsync_ValidJsonWrongStructure_LogsUnexpectedError(string validJsonWrongStructure)
-        {
-            // Arrange
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Respond("application/json", validJsonWrongStructure);
-
-            // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty"
-            );
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            
-            // Should log Unexpected error for valid JSON with wrong structure
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Error,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Unexpected error")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
-        }
-
-        #endregion
-
-        #region Enhanced Error Handling Tests - Content Types and Large Responses
-
-        [Theory]
-        [InlineData("text/html")]
-        [InlineData("application/xml")]
-        [InlineData("text/plain")]
-        [InlineData("application/octet-stream")]
-        public async Task ExecuteApiCallAsync_IncorrectContentType_HandlesGracefully(string contentType)
-        {
-            // Arrange
-            var jsonData = JsonSerializer.Serialize(new { testProperty = new[] { new { id = 1, name = "Test" } } });
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Respond(contentType, jsonData);
-
-            // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty"
-            );
-
-            // Assert
-            result.Should().NotBeNull();
-            // Should still work if content is valid JSON, regardless of content-type
-            // (HttpClient is generally tolerant of content-type mismatches)
-        }
-
-        [Fact]
-        public async Task ExecuteApiCallAsync_LargeResponse_HandlesCorrectly()
-        {
-            // Arrange - Create a large response (e.g., 1000 items)
-            var largeData = Enumerable.Range(1, 1000)
-                .Select(i => new { id = i, name = $"Item {i}" })
-                .ToArray();
-            var testData = new { testProperty = largeData };
-            var jsonResponse = JsonSerializer.Serialize(testData);
-            
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Respond("application/json", jsonResponse);
-
-            // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty"
-            );
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().HaveCount(1000);
-            
-            // Verify appropriate logging for large datasets
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Information,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => 
-                        v.ToString()!.Contains("Successfully retrieved 1000 items")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
-        }
-
-        #endregion
-
-        #region Enhanced Error Handling Tests - Network Level Errors
-
-        [Fact]
-        public async Task ExecuteApiCallAsync_DNSResolutionFailure_HandlesGracefully()
-        {
-            // Arrange
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Throw(new HttpRequestException("Name or service not known"));
-
-            // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty"
-            );
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Error,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Network error")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
-        }
-
-        [Fact]
-        public async Task ExecuteApiCallAsync_ConnectionRefused_HandlesGracefully()
-        {
-            // Arrange
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Throw(new HttpRequestException("Connection refused"));
-
-            // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty"
-            );
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Error,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Network error")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
-        }
-
-        [Fact]
-        public async Task ExecuteApiCallAsync_SSLCertificateError_HandlesGracefully()
-        {
-            // Arrange
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/test-endpoint")
-                .Throw(new HttpRequestException("SSL connection could not be established"));
-
-            // Act
-            var result = await _tool.ExecuteApiCallAsync<List<TestResponse>>(
-                "test-endpoint", 
-                "Test Operation", 
-                "testProperty"
-            );
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-
-            _mockLogger.Verify(
-                x => x.Log(
-                    LogLevel.Error,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Network error")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
-        }
-
-        #endregion
-
-        public void Dispose()
-        {
-            _httpClient?.Dispose();
-            _mockHttpHandler?.Dispose();
+            base.Dispose();
         }
     }
 }

@@ -79,5 +79,26 @@ module mcpServer 'host/mcpServer.bicep' = {
     containerRegistryName: containerRegistryName
     uaiName: uaiName
     imageName: imageName
+    entraAppClientId: mcpEntraApp.outputs.mcpAppId
+  }
+}
+
+module mcpEntraApp 'apim/mcp-entra-app.bicep' = {
+  scope: resourceGroup
+  name: 'mcpEntraApp'
+  params: {
+    baseName: baseName
+    uaiName: uaiName
+  }
+}
+
+module mcpApi 'apim/mcp-api.bicep' = {
+  scope: resourceGroup
+  name: 'mcpApi'
+  params: {
+    apimName: apim.outputs.name
+    containerAppName: mcpServer.outputs.name
+    mcpEntraAppId: mcpEntraApp.outputs.mcpAppId
+    mcpEntraTenantId: mcpEntraApp.outputs.mcpAppTenantId
   }
 }

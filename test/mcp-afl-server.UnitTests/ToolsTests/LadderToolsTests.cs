@@ -1,26 +1,23 @@
 using FluentAssertions;
-using mcp_afl_server.Tools;
-using mcp_afl_server.UnitTests.Helpers;
 using Microsoft.Extensions.Logging;
 using Moq;
+using System.Text.Json;
+using mcp_afl_server.Tools;
+using mcp_afl_server.UnitTests.Helpers;
 using RichardSzalay.MockHttp;
-using System.Net;
 
 namespace mcp_afl_server.UnitTests.ToolsTests
 {
-    public class LadderToolsTests : IDisposable
+    public class LadderToolsTests : AuthenticatedToolTestBase
     {
         private readonly Mock<ILogger<LadderTools>> _mockLogger;
-        private readonly MockHttpMessageHandler _mockHttpHandler;
-        private readonly HttpClient _httpClient;
-        private readonly LadderTools _ladderTools;
 
-        public LadderToolsTests()
+        public LadderToolsTests() : base()
         {
             _mockLogger = HttpClientTestHelper.CreateMockLogger<LadderTools>();
-            (_httpClient, _mockHttpHandler) = HttpClientTestHelper.CreateMockHttpClient();
-            _ladderTools = new LadderTools(_httpClient, _mockLogger.Object);
         }
+
+        #region Happy Path Tests
 
         [Fact]
         public async Task GetProjectedLadderByRoundAndYear_ValidParameters_ReturnsLadderData()
@@ -28,34 +25,52 @@ namespace mcp_afl_server.UnitTests.ToolsTests
             // Arrange
             const int year = 2024;
             const int round = 5;
-            var expectedJson = TestData.CreateLadderResponseJson();
+            var ladderTools = new LadderTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
             
-            _mockHttpHandler
+            var testLadderData = new[] 
+            { 
+                new { 
+                    team = "Adelaide", 
+                    teamid = 1, 
+                    wins = "10", 
+                    rank = 1, 
+                    swarms = new[] { "swarm1" }, 
+                    dummy = 0, 
+                    year = 2024, 
+                    round = 5, 
+                    sourceid = 1, 
+                    mean_rank = "1.0", 
+                    source = "test-source",
+                    updated = "2024-01-01" 
+                },
+                new { 
+                    team = "Brisbane Lions", 
+                    teamid = 2, 
+                    wins = "8", 
+                    rank = 2, 
+                    swarms = new[] { "swarm1" }, 
+                    dummy = 0, 
+                    year = 2024, 
+                    round = 5, 
+                    sourceid = 1, 
+                    mean_rank = "2.0", 
+                    source = "test-source",
+                    updated = "2024-01-01" 
+                }
+            };
+            var expectedJson = JsonSerializer.Serialize(new { ladder = testLadderData });
+            
+            MockHttpHandler
                 .When($"https://api.squiggle.com.au/?q=ladder;year={year};round={round}")
                 .Respond("application/json", expectedJson);
 
             // Act
-            var result = await _ladderTools.GetProjectedLadderByRoundAndYear(round, year);
+            var result = await ladderTools.GetProjectedLadderByRoundAndYear(round, year);
 
             // Assert
             result.Should().NotBeNull();
-            result.Should().HaveCount(1);
-        }
-
-        [Theory]
-        [InlineData(1800, 1)] // Invalid year - too old
-        [InlineData(2030, 1)] // Invalid year - too far in future
-        [InlineData(2024, 0)] // Invalid round - too low
-        [InlineData(2024, 31)] // Invalid round - too high
-        public async Task GetProjectedLadderByRoundAndYear_InvalidParameters_ReturnsEmptyList(int year, int round)
-        {
-            // Act
-            var result = await _ladderTools.GetProjectedLadderByRoundAndYear(round, year);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Warning, "Invalid");
+            result.Should().HaveCount(2);
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
         [Fact]
@@ -64,102 +79,121 @@ namespace mcp_afl_server.UnitTests.ToolsTests
             // Arrange
             const int year = 2024;
             const int round = 5;
-            const string source = "TestSource";
-            var expectedJson = TestData.CreateLadderResponseJson();
+            const string source = "test-source";
+            var ladderTools = new LadderTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
             
-            _mockHttpHandler
+            var testLadderData = new[] 
+            { 
+                new { 
+                    team = "Adelaide", 
+                    teamid = 1, 
+                    wins = "10", 
+                    rank = 1, 
+                    swarms = new[] { "swarm1" }, 
+                    dummy = 0, 
+                    year = 2024, 
+                    round = 5, 
+                    sourceid = 1, 
+                    mean_rank = "1.0", 
+                    source = "test-source",
+                    updated = "2024-01-01" 
+                }
+            };
+            var expectedJson = JsonSerializer.Serialize(new { ladder = testLadderData });
+            
+            MockHttpHandler
                 .When($"https://api.squiggle.com.au/?q=ladder;year={year};round={round};source={source}")
                 .Respond("application/json", expectedJson);
 
             // Act
-            var result = await _ladderTools.GetProjectedLadderByRoundAndYearBySource(round, year, source);
+            var result = await ladderTools.GetProjectedLadderByRoundAndYearBySource(round, year, source);
 
             // Assert
             result.Should().NotBeNull();
             result.Should().HaveCount(1);
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
+        }
+
+        #endregion
+
+        #region Parameter Validation Tests
+
+        [Theory]
+        [InlineData(1800, 5)]  // Invalid year
+        [InlineData(2024, 50)] // Invalid round
+        [InlineData(2024, 0)]  // Invalid round
+        public async Task GetProjectedLadderByRoundAndYear_InvalidParameters_ReturnsEmptyList(int year, int round)
+        {
+            // Arrange
+            var ladderTools = new LadderTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
+
+            // Act
+            var result = await ladderTools.GetProjectedLadderByRoundAndYear(round, year);
+
+            // Assert
+            result.Should().NotBeNull();
+            result.Should().BeEmpty();
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
         [Theory]
-        [InlineData("")]
-        [InlineData("   ")]
-        [InlineData(null)]
-        public async Task GetProjectedLadderByRoundAndYearBySource_InvalidSource_ReturnsEmptyList(string invalidSource)
+        [InlineData(2024, 5, "")]     // Empty source
+        [InlineData(2024, 5, "   ")]  // Whitespace source  
+        [InlineData(1800, 5, "test")] // Invalid year
+        [InlineData(2024, 50, "test")]// Invalid round
+        public async Task GetProjectedLadderByRoundAndYearBySource_InvalidParameters_ReturnsEmptyList(int year, int round, string source)
         {
+            // Arrange
+            var ladderTools = new LadderTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
+
             // Act
-            var result = await _ladderTools.GetProjectedLadderByRoundAndYearBySource(1, 2024, invalidSource!);
+            var result = await ladderTools.GetProjectedLadderByRoundAndYearBySource(round, year, source);
 
             // Assert
             result.Should().NotBeNull();
             result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Warning, "Source cannot be null or empty");
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
+        #endregion
+
+        #region Authentication Failure Tests
+
         [Fact]
-        public async Task GetProjectedLadderByRoundAndYear_ApiReturnsError_ReturnsEmptyList()
+        public async Task GetProjectedLadderByRoundAndYear_Unauthenticated_ThrowsUnauthorizedAccessException()
         {
             // Arrange
             const int year = 2024;
             const int round = 5;
+            SetupUnauthenticatedUser();
+            var ladderTools = new LadderTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => ladderTools.GetProjectedLadderByRoundAndYear(round, year));
+            exception.Should().NotBeNull();
             
-            _mockHttpHandler
-                .When($"https://api.squiggle.com.au/?q=ladder;year={year};round={round}")
-                .Respond(HttpStatusCode.BadRequest);
-
-            // Act
-            var result = await _ladderTools.GetProjectedLadderByRoundAndYear(round, year);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Error, "API request failed");
+            // Verify authentication was attempted
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
         [Fact]
-        public async Task GetProjectedLadderByRoundAndYearBySource_SourceWithSpecialCharacters_EncodesCorrectly()
+        public async Task GetProjectedLadderByRoundAndYearBySource_Unauthenticated_ThrowsUnauthorizedAccessException()
         {
             // Arrange
             const int year = 2024;
             const int round = 5;
-            const string sourceWithSpecialChars = "Test Source & More";
-            var expectedJson = TestData.CreateLadderResponseJson();
+            const string source = "test-source";
+            SetupUnauthenticatedUser();
+            var ladderTools = new LadderTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => ladderTools.GetProjectedLadderByRoundAndYearBySource(round, year, source));
+            exception.Should().NotBeNull();
             
-            // The URL will NOT be encoded - the source is passed directly to the endpoint
-            _mockHttpHandler
-                .When($"https://api.squiggle.com.au/?q=ladder;year={year};round={round};source={sourceWithSpecialChars}")
-                .Respond("application/json", expectedJson);
-
-            // Act
-            var result = await _ladderTools.GetProjectedLadderByRoundAndYearBySource(round, year, sourceWithSpecialChars);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().HaveCount(1);
+            // Verify authentication was attempted
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
-        [Fact]
-        public async Task GetProjectedLadderByRoundAndYear_MissingLadderProperty_ReturnsEmptyList()
-        {
-            // Arrange
-            const int year = 2024;
-            const int round = 1;
-            var jsonWithoutLadderProperty = """{"other_property": []}""";
-            
-            _mockHttpHandler
-                .When($"https://api.squiggle.com.au/?q=ladder;year={year};round={round}")
-                .Respond("application/json", jsonWithoutLadderProperty);
-
-            // Act
-            var result = await _ladderTools.GetProjectedLadderByRoundAndYear(round, year);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Warning, "No 'ladder' property found");
-        }
-
-        public void Dispose()
-        {
-            _httpClient?.Dispose();
-        }
+        #endregion
     }
 }

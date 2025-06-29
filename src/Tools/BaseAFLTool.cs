@@ -1,4 +1,6 @@
+using mcp_afl_server.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Graph.Models;
 using System.Collections;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -8,11 +10,34 @@ public abstract class BaseAFLTool
 {
     protected readonly HttpClient _httpClient;
     protected readonly ILogger _logger;
+    protected readonly IAuthenticationService _authenticationService;
 
-    protected BaseAFLTool(HttpClient httpClient, ILogger logger)
+    protected BaseAFLTool(
+        HttpClient httpClient,
+        ILogger logger,
+        IAuthenticationService authenticationService)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _authenticationService = authenticationService ?? throw new ArgumentNullException(nameof(authenticationService));
+    }
+
+    /// <summary>
+    /// Validates authentication and gets the current user
+    /// </summary>
+    /// <returns>The authenticated user</returns>
+    protected async Task<User> GetCurrentUserAsync()
+    {
+        return await _authenticationService.GetCurrentUserAsync();
+    }
+
+    /// <summary>
+    /// Checks if the current request is authenticated
+    /// </summary>
+    /// <returns>True if authenticated</returns>
+    protected bool IsAuthenticated()
+    {
+        return _authenticationService.IsAuthenticated();
     }
 
     /// <summary>
@@ -28,7 +53,7 @@ public abstract class BaseAFLTool
         string endpoint,
         string operationName,
         string propertyName,
-        Func<T, bool> additionalValidation = null) where T : class, new()
+        Func<T, bool>? additionalValidation = null) where T : class, new()
     {
         _logger.LogInformation("Fetching data for {Operation} - Endpoint: {Endpoint}", operationName, endpoint);
 

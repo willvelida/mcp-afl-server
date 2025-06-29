@@ -1,4 +1,6 @@
 ﻿using System.Net.Http.Headers;
+using mcp_afl_server.Configuration;
+using mcp_afl_server.Services;
 using mcp_afl_server.Tools;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -21,8 +23,17 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.Configure<AzureAdOptions>(builder.Configuration.GetSection("AzureAd"));
+
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+
 builder.Services.AddMcpServer()
-    .WithHttpTransport()
+    .WithHttpTransport(options =>
+    {
+        options.Stateless = true;
+    })
     .WithToolsFromAssembly();
 
 builder.Services.AddOpenTelemetry()

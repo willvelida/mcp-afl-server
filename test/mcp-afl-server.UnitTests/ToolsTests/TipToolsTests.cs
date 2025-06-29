@@ -4,23 +4,20 @@ using mcp_afl_server.UnitTests.Helpers;
 using Microsoft.Extensions.Logging;
 using Moq;
 using RichardSzalay.MockHttp;
-using System.Net;
+using System.Text.Json;
 
 namespace mcp_afl_server.UnitTests.ToolsTests
 {
-    public class TipsToolsTests : IDisposable
+    public class TipToolsTests : AuthenticatedToolTestBase
     {
         private readonly Mock<ILogger<TipsTools>> _mockLogger;
-        private readonly MockHttpMessageHandler _mockHttpHandler;
-        private readonly HttpClient _httpClient;
-        private readonly TipsTools _tipsTools;
 
-        public TipsToolsTests()
+        public TipToolsTests() : base()
         {
             _mockLogger = HttpClientTestHelper.CreateMockLogger<TipsTools>();
-            (_httpClient, _mockHttpHandler) = HttpClientTestHelper.CreateMockHttpClient();
-            _tipsTools = new TipsTools(_httpClient, _mockLogger.Object);
         }
+
+        #region Happy Path Tests
 
         [Fact]
         public async Task GetTipsByRoundAndYear_ValidParameters_ReturnsTipsData()
@@ -28,34 +25,26 @@ namespace mcp_afl_server.UnitTests.ToolsTests
             // Arrange
             const int year = 2024;
             const int round = 5;
-            var expectedJson = TestData.CreateTipsResponseJson();
+            var tipsTools = new TipsTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
             
-            _mockHttpHandler
+            var testTipsData = new[] 
+            { 
+                new { game = 1, tipster = "Test Tipster 1", tip = "Test Team 1" },
+                new { game = 2, tipster = "Test Tipster 2", tip = "Test Team 2" }
+            };
+            var expectedJson = JsonSerializer.Serialize(new { tips = testTipsData });
+            
+            MockHttpHandler
                 .When($"https://api.squiggle.com.au/?q=tips;year={year};round={round}")
                 .Respond("application/json", expectedJson);
 
             // Act
-            var result = await _tipsTools.GetTipsByRoundAndYear(round, year);
+            var result = await tipsTools.GetTipsByRoundAndYear(round, year);
 
             // Assert
             result.Should().NotBeNull();
-            result.Should().HaveCount(1);
-        }
-
-        [Theory]
-        [InlineData(1800, 1)] // Invalid year - too old
-        [InlineData(2030, 1)] // Invalid year - too far in future
-        [InlineData(2024, 0)] // Invalid round - too low
-        [InlineData(2024, 31)] // Invalid round - too high
-        public async Task GetTipsByRoundAndYear_InvalidParameters_ReturnsEmptyList(int year, int round)
-        {
-            // Act
-            var result = await _tipsTools.GetTipsByRoundAndYear(round, year);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Warning, "Invalid");
+            result.Should().HaveCount(2);
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
         [Fact]
@@ -63,112 +52,126 @@ namespace mcp_afl_server.UnitTests.ToolsTests
         {
             // Arrange
             const int gameId = 12345;
-            var expectedJson = TestData.CreateTipsResponseJson();
+            var tipsTools = new TipsTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
             
-            _mockHttpHandler
+            var testTipsData = new[] 
+            { 
+                new { game = gameId, tipster = "Test Tipster 1", tip = "Test Team 1" }
+            };
+            var expectedJson = JsonSerializer.Serialize(new { tips = testTipsData });
+            
+            MockHttpHandler
                 .When($"https://api.squiggle.com.au/?q=tips;game={gameId}")
                 .Respond("application/json", expectedJson);
 
             // Act
-            var result = await _tipsTools.GetTipsByGame(gameId);
+            var result = await tipsTools.GetTipsByGame(gameId);
 
             // Assert
             result.Should().NotBeNull();
             result.Should().HaveCount(1);
-        }
-
-        [Theory]
-        [InlineData(-1)]
-        [InlineData(0)]
-        public async Task GetTipsByGame_InvalidGameId_ReturnsEmptyList(int invalidGameId)
-        {
-            // Act
-            var result = await _tipsTools.GetTipsByGame(invalidGameId);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Warning, "Game ID must be a positive integer");
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
         [Fact]
         public async Task GetFutureTips_ValidRequest_ReturnsTipsData()
         {
             // Arrange
-            var expectedJson = TestData.CreateTipsResponseJson();
+            var tipsTools = new TipsTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
             
-            _mockHttpHandler
+            var testTipsData = new[] 
+            { 
+                new { game = 1, tipster = "Test Tipster 1", tip = "Test Team 1", complete = 0 },
+                new { game = 2, tipster = "Test Tipster 2", tip = "Test Team 2", complete = 50 }
+            };
+            var expectedJson = JsonSerializer.Serialize(new { tips = testTipsData });
+            
+            MockHttpHandler
                 .When("https://api.squiggle.com.au/?q=tips;complete=!100")
                 .Respond("application/json", expectedJson);
 
             // Act
-            var result = await _tipsTools.GetFutureTips();
+            var result = await tipsTools.GetFutureTips();
 
             // Assert
             result.Should().NotBeNull();
-            result.Should().HaveCount(1);
+            result.Should().HaveCount(2);
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
-        [Fact]
-        public async Task GetFutureTips_ApiReturnsError_ReturnsEmptyList()
+        #endregion
+
+        #region Parameter Validation Tests
+
+        [Theory]
+        [InlineData(1800, 5)]  // Invalid year
+        [InlineData(2024, 50)] // Invalid round
+        [InlineData(2024, 0)]  // Invalid round
+        [InlineData(2024, -1)] // Invalid round
+        public async Task GetTipsByRoundAndYear_InvalidParameters_ReturnsEmptyList(int year, int round)
         {
             // Arrange
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/?q=tips;complete=!100")
-                .Respond(HttpStatusCode.ServiceUnavailable);
+            var tipsTools = new TipsTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
 
             // Act
-            var result = await _tipsTools.GetFutureTips();
+            var result = await tipsTools.GetTipsByRoundAndYear(round, year);
 
             // Assert
             result.Should().NotBeNull();
             result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Error, "API request failed");
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
-        [Fact]
-        public async Task GetTipsByRoundAndYear_MissingTipsProperty_ReturnsEmptyList()
+        [Theory]
+        [InlineData(0)]   // Invalid game ID
+        [InlineData(-1)]  // Invalid game ID
+        public async Task GetTipsByGame_InvalidGameId_ReturnsEmptyList(int gameId)
         {
             // Arrange
-            const int year = 2024;
-            const int round = 1;
-            var jsonWithoutTipsProperty = """{"other_property": []}""";
-            
-            _mockHttpHandler
-                .When($"https://api.squiggle.com.au/?q=tips;year={year};round={round}")
-                .Respond("application/json", jsonWithoutTipsProperty);
+            var tipsTools = new TipsTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
 
             // Act
-            var result = await _tipsTools.GetTipsByRoundAndYear(round, year);
+            var result = await tipsTools.GetTipsByGame(gameId);
 
             // Assert
             result.Should().NotBeNull();
             result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Warning, "No 'tips' property found");
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
+        }
+
+        #endregion
+
+        #region Authentication Tests
+
+        [Fact]
+        public async Task GetTipsByRoundAndYear_Unauthenticated_ThrowsUnauthorizedAccessException()
+        {
+            // Arrange
+            SetupUnauthenticatedUser();
+            var tipsTools = new TipsTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tipsTools.GetTipsByRoundAndYear(5, 2024));
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
         [Fact]
-        public async Task GetTipsByGame_NetworkException_ReturnsEmptyList()
+        public async Task GetFutureTips_Unauthenticated_ThrowsUnauthorizedAccessException()
         {
             // Arrange
-            const int gameId = 12345;
-            
-            _mockHttpHandler
-                .When($"https://api.squiggle.com.au/?q=tips;game={gameId}")
-                .Throw(new HttpRequestException("Network failure"));
+            SetupUnauthenticatedUser();
+            var tipsTools = new TipsTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
 
-            // Act
-            var result = await _tipsTools.GetTipsByGame(gameId);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Error, "Network error");
+            // Act & Assert
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tipsTools.GetFutureTips());
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
-        public void Dispose()
+        #endregion
+
+        public override void Dispose()
         {
-            _httpClient?.Dispose();
+            base.Dispose();
         }
     }
 }

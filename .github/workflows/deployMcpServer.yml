@@ -51,7 +51,7 @@ jobs:
           run: mkdir -p ${{ needs.env-setup.outputs.coverage-path }}
 
         - name: Run unit tests
-          run: dotnet test src/mcp-afl-server.sln --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory ${{ needs.env-setup.outputs.coverage-path }}
+          run: dotnet test ./test/mcp-afl-server.UnitTests/mcp-afl-server.UnitTests.csproj --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory ${{ needs.env-setup.outputs.coverage-path }}
 
         - name: Merge Code Coverage reports
           run: |

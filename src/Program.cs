@@ -1,14 +1,16 @@
-﻿using System.Net.Http.Headers;
-using mcp_afl_server.Configuration;
+﻿using mcp_afl_server.Configuration;
 using mcp_afl_server.Services;
 using mcp_afl_server.Tools;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.AuthenticatedEncryption.ConfigurationModel;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using System.Net.Http.Headers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +30,18 @@ builder.Services.Configure<AzureAdOptions>(builder.Configuration.GetSection("Azu
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+
+builder.Services.AddDataProtection()
+    .SetApplicationName("mcp-afl-server")
+    .DisableAutomaticKeyGeneration()
+    .UseCustomCryptographicAlgorithms(
+        new ManagedAuthenticatedEncryptorConfiguration()
+        {
+            // These are the default algorithms
+            EncryptionAlgorithmType = typeof(System.Security.Cryptography.Aes),
+            EncryptionAlgorithmKeySize = 256,
+            ValidationAlgorithmType = typeof(System.Security.Cryptography.HMACSHA256)
+        });
 
 builder.Services.AddMcpServer()
     .WithHttpTransport(options =>

@@ -24,14 +24,14 @@ jobs:
               dotnet-version: '9.0.x'
 
           - name: Restore dependencies
-            run: dotnet restore
+            run: dotnet restore ./src/mcp-afl-server.sln
 
           - name: Build solution
-            run: dotnet build --configuration Release --no-restore
+            run: dotnet build ./src/mcp-afl-server.sln --configuration Release --no-restore
 
           - name: Run tests with coverage
             run: |
-                dotnet test test/mcp-afl-server.UnitTests/mcp-afl-server.UnitTests.csproj \
+                dotnet test ./test/mcp-afl-server.UnitTests/mcp-afl-server.UnitTests.csproj \
                   --configuration Release \
                   --no-build \
                   --verbosity normal \
@@ -86,55 +86,7 @@ jobs:
                       repo: context.repo.repo,
                       body: coverageComment
                     });
-                  } 
-                    
-          - name: Generate coverage report
-            run: |
-                dotnet tool install -g dotnet-reportgenerator-globaltool
-                reportgenerator \
-                  -reports:"./coverage-results/**/coverage.cobertura.xml" \
-                  -targetdir:"./coverage-report" \
-                  -reporttypes:"Html;Cobertura;JsonSummary" \
-                  -verbosity:Warning
-
-          - name: Upload coverage reports to artifacts
-            uses: actions/upload-artifact@v4
-            with:
-              name: coverage-report
-              path: ./coverage-report/
-              retention-days: 30
-
-          - name: Comment coverage on PR
-            if: github.event_name == 'pull_request'
-            uses: actions/github-script@v7
-            with:
-              script: |
-                  const fs = require('fs');
-                  const path = './coverage-report/Summary.json';
-                  
-                  if (fs.existsSync(path)) {
-                    const coverage = JSON.parse(fs.readFileSync(path, 'utf8'));
-                    const lineCoverage = coverage.summary.linecoverage;
-                    const branchCoverage = coverage.summary.branchcoverage;
-                    
-                    const coverageComment = `## 📊 Code Coverage Report
-                  
-                  | Metric | Percentage |
-                  |--------|------------|
-                  | **Line Coverage** | ${lineCoverage}% |
-                  | **Branch Coverage** | ${branchCoverage}% |
-                  
-                  📁 [View detailed coverage report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-                  
-                  ${lineCoverage >= 80 ? '✅ Great coverage!' : '⚠️ Consider adding more tests to improve coverage.'}`;
-                    
-                    github.rest.issues.createComment({
-                      issue_number: context.issue.number,
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      body: coverageComment
-                    });
-                  }
+                  }                   
         
     build-container-image:
         name: Build Docker Image

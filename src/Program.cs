@@ -31,18 +31,6 @@ builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 
-builder.Services.AddDataProtection()
-    .SetApplicationName("mcp-afl-server")
-    .DisableAutomaticKeyGeneration()
-    .UseCustomCryptographicAlgorithms(
-        new ManagedAuthenticatedEncryptorConfiguration()
-        {
-            // These are the default algorithms
-            EncryptionAlgorithmType = typeof(System.Security.Cryptography.Aes),
-            EncryptionAlgorithmKeySize = 256,
-            ValidationAlgorithmType = typeof(System.Security.Cryptography.HMACSHA256)
-        });
-
 builder.Services.AddMcpServer()
     .WithHttpTransport(options =>
     {

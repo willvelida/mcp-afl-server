@@ -24,7 +24,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested all sources", user?.Id);
+                _logger.LogInformation($"User {user?.Id} requested all sources");
 
                 const string endpoint = "?q=sources";
                 const string operationName = "All Sources";
@@ -39,12 +39,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetSources");
+                _logger.LogWarning($"Unauthorized access attempt for GetSources: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetSources");
+                _logger.LogError($"Error in GetSources: {ex.Message}");
                 throw;
             }
         }
@@ -57,7 +57,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested source by ID {SourceId}", user?.Id, sourceId);
+                _logger.LogInformation($"User {user?.Id} requested source by ID {sourceId}");
 
                 // Validate parameters using base class method
                 if (!ValidateParameters(
@@ -79,12 +79,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetSourceById");
+                _logger.LogWarning($"Unauthorized access attempt for GetSourceById: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetSourceById for source {SourceId}", sourceId);
+                _logger.LogError($"Error in GetSourceById for source {sourceId}: {ex.Message}");
                 throw;
             }
         }

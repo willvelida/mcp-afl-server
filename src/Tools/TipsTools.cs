@@ -26,8 +26,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested tips for year {Year}, round {Round}",
-                    user?.Id, year, roundNumber);
+                _logger.LogInformation($"User {user?.Id} requested tips for year {year}, round {roundNumber}");
 
                 // Validate parameters using base class method
                 if (!ValidateParameters(
@@ -50,12 +49,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetTipsByRoundAndYear");
+                _logger.LogWarning($"Unauthorized access attempt for GetTipsByRoundAndYear: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetTipsByRoundAndYear for year {Year}, round {Round}", year, roundNumber);
+                _logger.LogError($"Error in GetTipsByRoundAndYear for year {year}, round {roundNumber}: {ex.Message}");
                 throw;
             }
         }
@@ -68,8 +67,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested tips for game {GameId}",
-                    user?.Id, gameId);
+                _logger.LogInformation($"User {user?.Id} requested tips for game {gameId}");
 
                 // Validate parameters using base class method
                 if (!ValidateParameters(
@@ -91,12 +89,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetTipsByGame");
+                _logger.LogWarning($"Unauthorized access attempt for GetTipsByGame: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetTipsByGame for game {GameId}", gameId);
+                _logger.LogError($"Error in GetTipsByGame for game {gameId}: {ex.Message}");
                 throw;
             }
         }
@@ -108,7 +106,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested future tips", user?.Id);
+                _logger.LogInformation($"User {user?.Id} requested future tips");
 
                 const string endpoint = "?q=tips;complete=!100";
                 const string operationName = "Future Tips";
@@ -123,12 +121,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetFutureTips");
+                _logger.LogWarning($"Unauthorized access attempt for GetFutureTips: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetFutureTips");
+                _logger.LogError($"Error in GetFutureTips: {ex.Message}");
                 throw;
             }
         }

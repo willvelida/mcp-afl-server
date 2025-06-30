@@ -24,7 +24,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested current standings", user?.Id);
+                _logger.LogInformation($"User {user?.Id} requested current standings");
 
                 const string endpoint = "?q=standings";
                 const string operationName = "Current Standings";
@@ -39,12 +39,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetCurrentStandings");
+                _logger.LogWarning($"Unauthorized access attempt for GetCurrentStandings: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetCurrentStandings");
+                _logger.LogError($"Error in GetCurrentStandings: {ex.Message}");
                 throw;
             }
         }
@@ -58,8 +58,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested standings for year {Year}, round {Round}",
-                    user?.Id, year, roundNumber);
+                _logger.LogInformation($"User {user?.Id} requested standings for year {year}, round {roundNumber}");
 
                 // Validate parameters using base class method
                 if (!ValidateParameters(
@@ -82,12 +81,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetStandingsByRoundAndYear");
+                _logger.LogWarning($"Unauthorized access attempt for GetStandingsByRoundAndYear: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetStandingsByRoundAndYear for year {Year}, round {Round}", year, roundNumber);
+                _logger.LogError($"Error in GetStandingsByRoundAndYear for year {year}, round {roundNumber}: {ex.Message}");
                 throw;
             }
         }

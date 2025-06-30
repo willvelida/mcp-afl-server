@@ -26,8 +26,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested power rankings for year {Year}, round {Round}",
-                    user?.Id, year, roundNumber);
+                _logger.LogInformation($"User {year}  requested power rankings for year {year}, round {roundNumber}");
 
                 // Validate parameters using base class method
                 if (!ValidateParameters(
@@ -50,12 +49,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetPowerRankingByRoundAndYear");
+                _logger.LogWarning($"Unauthorized access attempt for GetPowerRankingByRoundAndYear: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetPowerRankingByRoundAndYear for year {Year}, round {Round}", year, roundNumber);
+                _logger.LogError($"Error in GetPowerRankingByRoundAndYear for year {year}, round {roundNumber}: {ex.Message}");
                 throw;
             }
         }
@@ -70,8 +69,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested power rankings for year {Year}, round {Round}, source {SourceId}",
-                    user?.Id, year, roundNumber, sourceId);
+                _logger.LogInformation($"User {user?.Id} requested power rankings for year {year}, round {roundNumber}, source {sourceId}");
 
                 // Validate parameters using base class method
                 if (!ValidateParameters(
@@ -95,12 +93,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetPowerRankingByRoundYearAndSource");
+                _logger.LogWarning($"Unauthorized access attempt for GetPowerRankingByRoundYearAndSource: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetPowerRankingByRoundYearAndSource for year {Year}, round {Round}, source {SourceId}", year, roundNumber, sourceId);
+                _logger.LogError($"Error in GetPowerRankingByRoundYearAndSource for year {year}, round {roundNumber}, source {sourceId}: {ex.Message}");
                 throw;
             }
         }
@@ -115,8 +113,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested team power rankings for year {Year}, round {Round}, team {TeamId}",
-                    user?.Id, year, roundNumber, teamId);
+                _logger.LogInformation($"User {user?.Id} requested team power rankings for year {year}, round {roundNumber}, team {teamId}");
 
                 // Validate parameters using base class method
                 if (!ValidateParameters(
@@ -140,12 +137,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetTeamPowerRankingByRoundAndYear");
+                _logger.LogWarning($"Unauthorized access attempt for GetTeamPowerRankingByRoundAndYear: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetTeamPowerRankingByRoundAndYear for year {Year}, round {Round}, team {TeamId}", year, roundNumber, teamId);
+                _logger.LogError($"Error in GetTeamPowerRankingByRoundAndYear for year {year}, round {roundNumber}, team {teamId}: {ex.Message}");
                 throw;
             }
         }

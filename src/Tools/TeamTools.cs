@@ -25,8 +25,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested team info for team {TeamId}",
-                    user?.Id, teamId);
+                _logger.LogInformation($"User {user?.Id} requested team info for team {teamId}");
 
                 // Validate parameters using base class method
                 if (!ValidateParameters(
@@ -48,12 +47,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetTeamInfo");
+                _logger.LogWarning($"Unauthorized access attempt for GetTeamInfo: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetTeamInfo for team {TeamId}", teamId);
+                _logger.LogError($"Error in GetTeamInfo for team {teamId}: {ex.Message}");
                 throw;
             }
         }
@@ -66,8 +65,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested teams for season {Year}",
-                    user?.Id, year);
+                _logger.LogInformation($"User {user?.Id} requested teams for season {year}");
 
                 // Validate parameters using base class method
                 if (!ValidateParameters(
@@ -89,12 +87,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetTeamsBySeason");
+                _logger.LogWarning($"Unauthorized access attempt for GetTeamsBySeason: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetTeamsBySeason for year {Year}", year);
+                _logger.LogError($"Error in GetTeamsBySeason for year {year}: {ex.Message}");
                 throw;
             }
         }

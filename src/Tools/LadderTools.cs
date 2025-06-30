@@ -26,8 +26,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested projected ladder for year {Year}, round {Round}",
-                    user?.Id, year, roundNumber);
+                _logger.LogInformation($"User {user?.Id} requested projected ladder for year {year}, round {roundNumber}");
 
                 // Validate parameters using base class method
                 if (!ValidateParameters(
@@ -50,12 +49,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetProjectedLadderByRoundAndYear");
+                _logger.LogWarning($"Unauthorized access attempt for GetProjectedLadderByRoundAndYear: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetProjectedLadderByRoundAndYear for year {Year}, round {Round}", year, roundNumber);
+                _logger.LogError($"Error in GetProjectedLadderByRoundAndYear for year {year}, round {roundNumber}: {ex.Message}");
                 throw;
             }
         }
@@ -70,8 +69,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested projected ladder for year {Year}, round {Round}, source {Source}",
-                    user?.Id, year, roundNumber, source);
+                _logger.LogInformation($"User {user?.Id} requested projected ladder for year {year}, round {roundNumber}, source {source}");
 
                 // Validate parameters using base class method
                 if (!ValidateParameters(
@@ -96,12 +94,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetProjectedLadderByRoundAndYearBySource");
+                _logger.LogWarning($"Unauthorized access attempt for GetProjectedLadderByRoundAndYearBySource: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetProjectedLadderByRoundAndYearBySource for year {Year}, round {Round}, source {Source}", year, roundNumber, source);
+                _logger.LogError($"Error in GetProjectedLadderByRoundAndYearBySource for year {year}, round {roundNumber}, source {source}");
                 throw;
             }
         }

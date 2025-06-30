@@ -24,8 +24,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested game result for game {GameId}",
-                    user?.Id, gameId);
+                _logger.LogInformation($"User {user?.Id} requested game result for game {gameId}");
 
                 // Validate parameters using base class method
                 if (!ValidateParameters(
@@ -47,12 +46,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetGameResult");
+                _logger.LogWarning($"Unauthorized access attempt for GetGameResult: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetGameResult for game {GameId}", gameId);
+                _logger.LogError($"Error in GetGameResult for game {gameId}: {ex.Message}");
                 throw;
             }
         }
@@ -66,8 +65,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation("User {UserId} requested round results for year {Year}, round {Round}",
-                    user?.Id, year, round);
+                _logger.LogInformation($"User {user?.Id} requested round results for year {year}, round {round}");
 
                 // Validate parameters using base class method
                 if (!ValidateParameters(
@@ -90,12 +88,12 @@ namespace mcp_afl_server.Tools
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access attempt for GetRoundResultsByYear");
+                _logger.LogWarning($"Unauthorized access attempt for GetRoundResultsByYear: {ex.Message}");
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in GetRoundResultsByYear for year {Year}, round {Round}", year, round);
+                _logger.LogError($"Error in GetRoundResultsByYear for year {year}, round {round}: {ex.Message}");
                 throw;
             }
         }

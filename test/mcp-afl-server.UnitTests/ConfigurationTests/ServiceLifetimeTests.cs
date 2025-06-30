@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using FluentAssertions;
 using mcp_afl_server.Tools;
+using mcp_afl_server.Services;
+using Moq;
 
 namespace mcp_afl_server.UnitTests.ConfigurationTests
 {
@@ -11,9 +13,13 @@ namespace mcp_afl_server.UnitTests.ConfigurationTests
             var services = new ServiceCollection();
             services.AddLogging();
             services.AddHttpClient();
-            services.AddScoped<GameTools>();
             services.AddSingleton<HttpClient>(provider => 
                 provider.GetRequiredService<IHttpClientFactory>().CreateClient("TestClient"));
+            
+            // Add authentication service (mock for testing)
+            var mockAuthService = new Mock<IAuthenticationService>();
+            services.AddScoped<IAuthenticationService>(_ => mockAuthService.Object);
+            services.AddScoped<GameTools>();
             
             return services.BuildServiceProvider();
         }
@@ -32,6 +38,10 @@ namespace mcp_afl_server.UnitTests.ConfigurationTests
             var services = new ServiceCollection();
             services.AddLogging();
             services.AddHttpClient();
+            
+            // Add authentication service dependency
+            var mockAuthService = new Mock<IAuthenticationService>();
+            services.AddScoped<IAuthenticationService>(_ => mockAuthService.Object);
             services.AddScoped(toolType);
 
             // Act

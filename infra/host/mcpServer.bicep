@@ -1,3 +1,5 @@
+extension microsoftGraphV1
+
 @description('Base name used for all resources')
 param baseName string
 
@@ -29,6 +31,9 @@ param appInsightsName string
 
 @description('The name of the container image that this Container App will use. Passed through in GitHub Action')
 param imageName string
+
+@description('The name of the Entra App that this Container App will use')
+param entraAppClientId string
 
 // EXISTING RESOURCES
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-04-01' existing = {
@@ -93,6 +98,18 @@ resource mcpServer 'Microsoft.App/containerApps@2025-01-01' = {
               name: 'managedidentityclientid'
               value: uai.properties.clientId
             }
+            {
+              name: 'AzureAd__TenantId'
+              value: tenant().tenantId
+            }
+            {
+              name: 'AzureAd__ClientId'
+              value: entraAppClientId
+            }
+            {
+              name: 'AzureAd__ManagedIdentityClientId'
+              value: uai.properties.clientId
+            }
           ]
           probes: [
             {
@@ -131,3 +148,9 @@ resource mcpServer 'Microsoft.App/containerApps@2025-01-01' = {
     }
   }
 }
+
+@description('The resource ID of the deployed MCP Server')
+output id string = mcpServer.id
+
+@description('The name of the deployed MCP Server')
+output name string = mcpServer.name

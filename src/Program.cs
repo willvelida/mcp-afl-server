@@ -1,12 +1,16 @@
-﻿using System.Net.Http.Headers;
+﻿using mcp_afl_server.Configuration;
+using mcp_afl_server.Services;
 using mcp_afl_server.Tools;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.AuthenticatedEncryption.ConfigurationModel;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using System.Net.Http.Headers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,8 +25,17 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.Configure<AzureAdOptions>(builder.Configuration.GetSection("AzureAd"));
+
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+
 builder.Services.AddMcpServer()
-    .WithHttpTransport()
+    .WithHttpTransport(options =>
+    {
+        options.Stateless = true;
+    })
     .WithToolsFromAssembly();
 
 builder.Services.AddOpenTelemetry()

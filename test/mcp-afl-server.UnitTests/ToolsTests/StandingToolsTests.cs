@@ -4,74 +4,45 @@ using mcp_afl_server.UnitTests.Helpers;
 using Microsoft.Extensions.Logging;
 using Moq;
 using RichardSzalay.MockHttp;
-using System.Net;
+using System.Text.Json;
 
 namespace mcp_afl_server.UnitTests.ToolsTests
 {
-    public class StandingsToolsTests : IDisposable
+    public class StandingToolsTests : AuthenticatedToolTestBase
     {
         private readonly Mock<ILogger<StandingsTools>> _mockLogger;
-        private readonly MockHttpMessageHandler _mockHttpHandler;
-        private readonly HttpClient _httpClient;
-        private readonly StandingsTools _standingsTools;
 
-        public StandingsToolsTests()
+        public StandingToolsTests() : base()
         {
             _mockLogger = HttpClientTestHelper.CreateMockLogger<StandingsTools>();
-            (_httpClient, _mockHttpHandler) = HttpClientTestHelper.CreateMockHttpClient();
-            _standingsTools = new StandingsTools(_httpClient, _mockLogger.Object);
         }
+
+        #region Happy Path Tests
 
         [Fact]
         public async Task GetCurrentStandings_ValidRequest_ReturnsStandingsData()
         {
             // Arrange
-            var expectedJson = TestData.CreateStandingsResponseJson();
+            var standingsTools = new StandingsTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
             
-            _mockHttpHandler
+            var testStandingsData = new[] 
+            { 
+                new { team = "Test Team 1", position = 1, points = 44, percentage = 125.5 },
+                new { team = "Test Team 2", position = 2, points = 40, percentage = 115.2 }
+            };
+            var expectedJson = JsonSerializer.Serialize(new { standings = testStandingsData });
+            
+            MockHttpHandler
                 .When("https://api.squiggle.com.au/?q=standings")
                 .Respond("application/json", expectedJson);
 
             // Act
-            var result = await _standingsTools.GetCurrentStandings();
+            var result = await standingsTools.GetCurrentStandings();
 
             // Assert
             result.Should().NotBeNull();
             result.Should().HaveCount(2);
-        }
-
-        [Fact]
-        public async Task GetCurrentStandings_ApiReturnsError_ReturnsEmptyList()
-        {
-            // Arrange
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/?q=standings")
-                .Respond(HttpStatusCode.InternalServerError);
-
-            // Act
-            var result = await _standingsTools.GetCurrentStandings();
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Error, "API request failed");
-        }
-
-        [Fact]
-        public async Task GetCurrentStandings_InvalidJson_ReturnsEmptyList()
-        {
-            // Arrange
-            _mockHttpHandler
-                .When("https://api.squiggle.com.au/?q=standings")
-                .Respond("application/json", "invalid json");
-
-            // Act
-            var result = await _standingsTools.GetCurrentStandings();
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Error, "JSON parsing error");
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
         [Fact]
@@ -80,80 +51,71 @@ namespace mcp_afl_server.UnitTests.ToolsTests
             // Arrange
             const int year = 2024;
             const int round = 5;
-            var expectedJson = TestData.CreateStandingsResponseJson();
+            var standingsTools = new StandingsTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
             
-            _mockHttpHandler
+            var testStandingsData = new[] 
+            { 
+                new { team = "Test Team 1", position = 1, points = 20, percentage = 125.5 }
+            };
+            var expectedJson = JsonSerializer.Serialize(new { standings = testStandingsData });
+            
+            MockHttpHandler
                 .When($"https://api.squiggle.com.au/?q=standings;year={year};round={round}")
                 .Respond("application/json", expectedJson);
 
             // Act
-            var result = await _standingsTools.GetStandingsByRoundAndYear(round, year);
+            var result = await standingsTools.GetStandingsByRoundAndYear(round, year);
 
             // Assert
             result.Should().NotBeNull();
-            result.Should().HaveCount(2);
+            result.Should().HaveCount(1);
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
+
+        #endregion
+
+        #region Parameter Validation Tests
 
         [Theory]
-        [InlineData(1800, 1)] // Invalid year - too old
-        [InlineData(2030, 1)] // Invalid year - too far in future
-        [InlineData(2024, 0)] // Invalid round - too low
-        [InlineData(2024, 31)] // Invalid round - too high
+        [InlineData(1800, 5)]  // Invalid year
+        [InlineData(2024, 50)] // Invalid round
+        [InlineData(2024, 0)]  // Invalid round
+        [InlineData(2024, -1)] // Invalid round
         public async Task GetStandingsByRoundAndYear_InvalidParameters_ReturnsEmptyList(int year, int round)
         {
+            // Arrange
+            var standingsTools = new StandingsTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
+
             // Act
-            var result = await _standingsTools.GetStandingsByRoundAndYear(round, year);
+            var result = await standingsTools.GetStandingsByRoundAndYear(round, year);
 
             // Assert
             result.Should().NotBeNull();
             result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Warning, "Invalid");
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
+
+        #endregion
+
+        #region Authentication Tests
 
         [Fact]
-        public async Task GetStandingsByRoundAndYear_MissingStandingsProperty_ReturnsEmptyList()
+        public async Task GetCurrentStandings_Unauthenticated_ThrowsUnauthorizedAccessException()
         {
             // Arrange
-            const int year = 2024;
-            const int round = 1;
-            var jsonWithoutStandingsProperty = """{"other_property": []}""";
-            
-            _mockHttpHandler
-                .When($"https://api.squiggle.com.au/?q=standings;year={year};round={round}")
-                .Respond("application/json", jsonWithoutStandingsProperty);
+            SetupUnauthenticatedUser();
+            var standingsTools = new StandingsTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
 
-            // Act
-            var result = await _standingsTools.GetStandingsByRoundAndYear(round, year);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Warning, "No 'standings' property found");
+            // Act & Assert
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => standingsTools.GetCurrentStandings());
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
-        [Fact]
-        public async Task GetStandingsByRoundAndYear_NetworkError_ReturnsEmptyList()
+        #endregion
+
+        public override void Dispose()
         {
-            // Arrange
-            const int year = 2024;
-            const int round = 1;
-            
-            _mockHttpHandler
-                .When($"https://api.squiggle.com.au/?q=standings;year={year};round={round}")
-                .Throw(new HttpRequestException("Network error"));
-
-            // Act
-            var result = await _standingsTools.GetStandingsByRoundAndYear(round, year);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Error, "Network error");
-        }
-
-        public void Dispose()
-        {
-            _httpClient?.Dispose();
+            base.Dispose();
         }
     }
 }

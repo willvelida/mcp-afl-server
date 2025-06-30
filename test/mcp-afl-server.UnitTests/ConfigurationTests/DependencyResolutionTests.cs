@@ -2,6 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using FluentAssertions;
 using mcp_afl_server.Tools;
+using mcp_afl_server.Services;
+using Moq;
 
 namespace mcp_afl_server.UnitTests.ConfigurationTests
 {
@@ -16,6 +18,10 @@ namespace mcp_afl_server.UnitTests.ConfigurationTests
             services.AddHttpClient();
             services.AddSingleton<HttpClient>(provider => 
                 provider.GetRequiredService<IHttpClientFactory>().CreateClient("SquiggleApi"));
+            
+            // Add authentication service (mock for testing)
+            var mockAuthService = new Mock<IAuthenticationService>();
+            services.AddScoped<IAuthenticationService>(_ => mockAuthService.Object);
             
             // Add all tool services
             services.AddScoped<GameTools>();
@@ -64,6 +70,7 @@ namespace mcp_afl_server.UnitTests.ConfigurationTests
             scope.ServiceProvider.GetRequiredService<IHttpClientFactory>().Should().NotBeNull();
             scope.ServiceProvider.GetRequiredService<HttpClient>().Should().NotBeNull();
             scope.ServiceProvider.GetRequiredService<ILogger<GameTools>>().Should().NotBeNull();
+            scope.ServiceProvider.GetRequiredService<IAuthenticationService>().Should().NotBeNull();
         }
     }
 }

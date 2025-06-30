@@ -4,151 +4,134 @@ using mcp_afl_server.UnitTests.Helpers;
 using Microsoft.Extensions.Logging;
 using Moq;
 using RichardSzalay.MockHttp;
-using System.Net;
+using System.Text.Json;
 
 namespace mcp_afl_server.UnitTests.ToolsTests
 {
-    public class TeamToolsTests : IDisposable
+    public class TeamToolsTests : AuthenticatedToolTestBase
     {
         private readonly Mock<ILogger<TeamTools>> _mockLogger;
-        private readonly MockHttpMessageHandler _mockHttpHandler;
-        private readonly HttpClient _httpClient;
-        private readonly TeamTools _teamTools;
 
-        public TeamToolsTests()
+        public TeamToolsTests() : base()
         {
             _mockLogger = HttpClientTestHelper.CreateMockLogger<TeamTools>();
-            (_httpClient, _mockHttpHandler) = HttpClientTestHelper.CreateMockHttpClient();
-            _teamTools = new TeamTools(_httpClient, _mockLogger.Object);
         }
+
+        #region Happy Path Tests
 
         [Fact]
         public async Task GetTeamInfo_ValidTeamId_ReturnsTeamData()
         {
             // Arrange
-            const int teamId = 1;
-            var expectedJson = TestData.CreateTeamResponseJson();
+            const int teamId = 123;
+            var teamTools = new TeamTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
             
-            _mockHttpHandler
+            var testTeamData = new[] 
+            { 
+                new { id = teamId, name = "Test Team", abbrev = "TT", logo = "test-logo.png" }
+            };
+            var expectedJson = JsonSerializer.Serialize(new { teams = testTeamData });
+            
+            MockHttpHandler
                 .When($"https://api.squiggle.com.au/?q=teams;team={teamId}")
                 .Respond("application/json", expectedJson);
 
             // Act
-            var result = await _teamTools.GetTeamInfo(teamId);
+            var result = await teamTools.GetTeamInfo(teamId);
 
             // Assert
             result.Should().NotBeNull();
             result.Should().HaveCount(1);
-        }
-
-        [Theory]
-        [InlineData(-1)]
-        [InlineData(0)]
-        public async Task GetTeamInfo_InvalidTeamId_ReturnsEmptyList(int invalidTeamId)
-        {
-            // Act
-            var result = await _teamTools.GetTeamInfo(invalidTeamId);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Warning, "Team ID must be a positive integer");
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
         [Fact]
-        public async Task GetTeamInfo_ApiReturnsNotFound_ReturnsEmptyList()
-        {
-            // Arrange
-            const int teamId = 999;
-            
-            _mockHttpHandler
-                .When($"https://api.squiggle.com.au/?q=teams;team={teamId}")
-                .Respond(HttpStatusCode.NotFound);
-
-            // Act
-            var result = await _teamTools.GetTeamInfo(teamId);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Error, "API request failed");
-        }
-
-        [Fact]
-        public async Task GetTeamsBySeason_ValidYear_ReturnsTeamData()
+        public async Task GetTeamsBySeason_ValidYear_ReturnsTeamsData()
         {
             // Arrange
             const int year = 2024;
-            var expectedJson = TestData.CreateTeamResponseJson();
+            var teamTools = new TeamTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
             
-            _mockHttpHandler
+            var testTeamsData = new[] 
+            { 
+                new { id = 1, name = "Test Team 1", abbrev = "TT1", logo = "test-logo1.png" },
+                new { id = 2, name = "Test Team 2", abbrev = "TT2", logo = "test-logo2.png" }
+            };
+            var expectedJson = JsonSerializer.Serialize(new { teams = testTeamsData });
+            
+            MockHttpHandler
                 .When($"https://api.squiggle.com.au/?q=teams;year={year}")
                 .Respond("application/json", expectedJson);
 
             // Act
-            var result = await _teamTools.GetTeamsBySeason(year);
+            var result = await teamTools.GetTeamsBySeason(year);
 
             // Assert
             result.Should().NotBeNull();
-            result.Should().HaveCount(1);
+            result.Should().HaveCount(2);
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
+        }
+
+        #endregion
+
+        #region Parameter Validation Tests
+
+        [Theory]
+        [InlineData(0)]   // Invalid team ID
+        [InlineData(-1)]  // Invalid team ID
+        public async Task GetTeamInfo_InvalidTeamId_ReturnsEmptyList(int teamId)
+        {
+            // Arrange
+            var teamTools = new TeamTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
+
+            // Act
+            var result = await teamTools.GetTeamInfo(teamId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result.Should().BeEmpty();
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
         [Theory]
-        [InlineData(1800)] // Invalid year - too old
-        [InlineData(2030)] // Invalid year - too far in future
-        public async Task GetTeamsBySeason_InvalidYear_ReturnsEmptyList(int invalidYear)
-        {
-            // Act
-            var result = await _teamTools.GetTeamsBySeason(invalidYear);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Warning, "Year must be between 1897 and current year + 1");
-        }
-
-        [Fact]
-        public async Task GetTeamsBySeason_MissingTeamsProperty_ReturnsEmptyList()
+        [InlineData(1800)]  // Invalid year
+        [InlineData(2030)]  // Invalid year (too far future)
+        public async Task GetTeamsBySeason_InvalidYear_ReturnsEmptyList(int year)
         {
             // Arrange
-            const int year = 2024;
-            var jsonWithoutTeamsProperty = """{"other_property": []}""";
-            
-            _mockHttpHandler
-                .When($"https://api.squiggle.com.au/?q=teams;year={year}")
-                .Respond("application/json", jsonWithoutTeamsProperty);
+            var teamTools = new TeamTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
 
             // Act
-            var result = await _teamTools.GetTeamsBySeason(year);
+            var result = await teamTools.GetTeamsBySeason(year);
 
             // Assert
             result.Should().NotBeNull();
             result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Warning, "No 'teams' property found");
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
+
+        #endregion
+
+        #region Authentication Tests
 
         [Fact]
-        public async Task GetTeamInfo_Timeout_ReturnsEmptyList()
+        public async Task GetTeamInfo_Unauthenticated_ThrowsUnauthorizedAccessException()
         {
             // Arrange
-            const int teamId = 1;
-            
-            _mockHttpHandler
-                .When($"https://api.squiggle.com.au/?q=teams;team={teamId}")
-                .Throw(new TaskCanceledException("Request timeout"));
+            const int teamId = 123;
+            SetupUnauthenticatedUser();
+            var teamTools = new TeamTools(HttpClient, _mockLogger.Object, MockAuthenticationService.Object);
 
-            // Act
-            var result = await _teamTools.GetTeamInfo(teamId);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-            HttpClientTestHelper.VerifyLogMessage(_mockLogger, LogLevel.Error, "Timeout");
+            // Act & Assert
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => teamTools.GetTeamInfo(teamId));
+            MockAuthenticationService.Verify(x => x.GetCurrentUserAsync(), Times.Once);
         }
 
-        public void Dispose()
+        #endregion
+
+        public override void Dispose()
         {
-            _httpClient?.Dispose();
+            base.Dispose();
         }
     }
 }

@@ -26,7 +26,7 @@ namespace mcp_afl_server.Tools
             {
                 // Authenticate user and get safe identifier for logging
                 var user = await GetCurrentUserAsync();
-                _logger.LogInformation($"User {year}  requested power rankings for year {year}, round {roundNumber}");
+                _logger.LogInformation($"User {user?.Id}  requested power rankings for year {year}, round {roundNumber}");
 
                 // Validate parameters using base class method
                 if (!ValidateParameters(

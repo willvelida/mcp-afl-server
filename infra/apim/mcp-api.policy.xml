@@ -1,8 +1,7 @@
 <!--
     Azure API Management Policy for AAD Token Validation
     This policy validates Azure Active Directory (AAD) access tokens from incoming requests.
-    If validation fails, it returns HTTP 401 with proper WWW-Authenticate header.
--->
+    If validation fails, it returns HTTP 401 with proper WWW-Authenticate header.-->
 <policies>
     <inbound>
         <base />
@@ -14,133 +13,81 @@
         </validate-azure-ad-token>
 
         <choose>
-            <!-- Current standings - cache for 30 minutes -->
-            <when condition="@(context.Operation.Name.Equals(&quot;getCurrentStandings&quot;))">
+            <!-- MCP SSE endpoint - cache for 5 minutes -->
+            <when condition="@(context.Operation.Name.Equals("mcp-sse"))">
                 <cache-lookup vary-by-developer="false" 
                              vary-by-developer-groups="false" 
                              downstream-caching-type="none" 
                              must-revalidate="true" 
-                             caching-type="external"
-                             cache-name="redis-cache">
+                             caching-type="internal">
                     <vary-by-header>Accept</vary-by-header>
                     <vary-by-header>Authorization</vary-by-header>
                 </cache-lookup>
             </when>
-            <!-- Game results - cache for 24 hours -->
-            <when condition="@(context.Operation.Name.Equals(&quot;getGameResult&quot;))">
-                <cache-lookup vary-by-developer="false" 
-                             vary-by-developer-groups="false" 
-                             downstream-caching-type="none" 
-                             must-revalidate="true" 
-                             caching-type="external"
-                             cache-name="redis-cache">
-                    <vary-by-header>Accept</vary-by-header>
-                    <vary-by-header>Authorization</vary-by-header>
-                    <vary-by-query-parameter>gameId</vary-by-query-parameter>
-                </cache-lookup>
+            
+            <!-- MCP Message endpoint - no caching for POST operations -->
+            <when condition="@(context.Operation.Name.Equals("mcp-message"))">
+                <!-- No caching for POST operations -->
             </when>
-            <!-- Power rankings - cache for 2 hours -->
-            <when condition="@(context.Operation.Name.Equals(&quot;getPowerRankingByRoundAndYear&quot;))">
+            
+            <!-- Health check - cache for 1 minute -->
+            <when condition="@(context.Operation.Name.Equals("mcp-health-check"))">
                 <cache-lookup vary-by-developer="false" 
                              vary-by-developer-groups="false" 
                              downstream-caching-type="none" 
                              must-revalidate="true" 
-                             caching-type="external"
-                             cache-name="redis-cache">
+                             caching-type="internal">
                     <vary-by-header>Accept</vary-by-header>
-                    <vary-by-header>Authorization</vary-by-header>
-                    <vary-by-query-parameter>roundNumber</vary-by-query-parameter>
-                    <vary-by-query-parameter>year</vary-by-query-parameter>
-                    <vary-by-query-parameter>sourceId</vary-by-query-parameter>
-                </cache-lookup>
-            </when>
-            <!-- Tips - cache for 1 hour -->
-            <when condition="@(context.Operation.Name.Equals(&quot;getFutureTips&quot;) || context.Operation.Name.Equals(&quot;getTipsByRoundAndYear&quot;))">
-                <cache-lookup vary-by-developer="false" 
-                             vary-by-developer-groups="false" 
-                             downstream-caching-type="none" 
-                             must-revalidate="true" 
-                             caching-type="external"
-                             cache-name="redis-cache">
-                    <vary-by-header>Accept</vary-by-header>
-                    <vary-by-header>Authorization</vary-by-header>
-                    <vary-by-query-parameter>roundNumber</vary-by-query-parameter>
-                    <vary-by-query-parameter>year</vary-by-query-parameter>
-                </cache-lookup>
-            </when>
-            <!-- Team info - cache for 6 hours -->
-            <when condition="@(context.Operation.Name.Equals(&quot;getTeamInfo&quot;))">
-                <cache-lookup vary-by-developer="false" 
-                             vary-by-developer-groups="false" 
-                             downstream-caching-type="none" 
-                             must-revalidate="true" 
-                             caching-type="external"
-                             cache-name="redis-cache">
-                    <vary-by-header>Accept</vary-by-header>
-                    <vary-by-header>Authorization</vary-by-header>
-                    <vary-by-query-parameter>teamId</vary-by-query-parameter>
                 </cache-lookup>
             </when>
         </choose>
+        
         <!-- Add cache control headers -->
         <set-header name="Cache-Control" exists-action="override">
             <value>@{
                 string operationName = context.Operation.Name;
                 return operationName switch {
-                    "getCurrentStandings" => "public, max-age=1800, stale-while-revalidate=300",
-                    "getGameResult" => "public, max-age=86400, immutable",
-                    "getPowerRankingByRoundAndYear" => "public, max-age=7200, stale-while-revalidate=600",
-                    "getFutureTips" or "getTipsByRoundAndYear" => "public, max-age=3600, stale-while-revalidate=300",
-                    "getTeamInfo" => "public, max-age=21600, stale-while-revalidate=1800",
+                    "mcp-sse" => "public, max-age=300, stale-while-revalidate=60",
+                    "mcp-health-check" => "public, max-age=60",
+                    "mcp-message" => "no-cache, no-store, must-revalidate",
+                    "mcp-streamable-get" => "public, max-age=300",
+                    "mcp-streamable-post" => "no-cache, no-store, must-revalidate",
                     _ => "public, max-age=300"
                 };
             }</value>
         </set-header>
     </inbound>
+    
     <backend>
         <base />
     </backend>
+    
     <outbound>
         <base />
+        
         <!-- Store successful responses in cache -->
         <choose>
             <when condition="@(context.Response.StatusCode == 200)">
                 <choose>
-                    <!-- Current standings - 30 minutes -->
-                    <when condition="@(context.Operation.Name.Equals(&quot;getCurrentStandings&quot;))">
-                        <cache-store duration="1800" 
-                                   caching-type="external" 
-                                   cache-name="redis-cache" />
+                    <!-- SSE endpoint - 5 minutes -->
+                    <when condition="@(context.Operation.Name.Equals("mcp-sse"))">
+                        <cache-store duration="300" 
+                                   caching-type="internal" />
                     </when>
                     
-                    <!-- Game results - 24 hours -->
-                    <when condition="@(context.Operation.Name.Equals(&quot;getGameResult&quot;))">
-                        <cache-store duration="86400" 
-                                   caching-type="external" 
-                                   cache-name="redis-cache" />
+                    <!-- Health check - 1 minute -->
+                    <when condition="@(context.Operation.Name.Equals("mcp-health-check"))">
+                        <cache-store duration="60" 
+                                   caching-type="internal" />
                     </when>
                     
-                    <!-- Power rankings - 2 hours -->
-                    <when condition="@(context.Operation.Name.Equals(&quot;getPowerRankingByRoundAndYear&quot;))">
-                        <cache-store duration="7200" 
-                                   caching-type="external" 
-                                   cache-name="redis-cache" />
-                    </when>
-                    
-                    <!-- Tips - 1 hour -->
-                    <when condition="@(context.Operation.Name.Equals(&quot;getFutureTips&quot;) || context.Operation.Name.Equals(&quot;getTipsByRoundAndYear&quot;))">
-                        <cache-store duration="3600" 
-                                   caching-type="external" 
-                                   cache-name="redis-cache" />
-                    </when>
-                    
-                    <!-- Team info - 6 hours -->
-                    <when condition="@(context.Operation.Name.Equals(&quot;getTeamInfo&quot;))">
-                        <cache-store duration="21600" 
-                                   caching-type="external" 
-                                   cache-name="redis-cache" />
+                    <!-- Streamable GET - 5 minutes -->
+                    <when condition="@(context.Operation.Name.Equals("mcp-streamable-get"))">
+                        <cache-store duration="300" 
+                                   caching-type="internal" />
                     </when>
                 </choose>
+                
                 <!-- Add debugging headers -->
                 <set-header name="X-Cache-Status" exists-action="override">
                     <value>@(context.Variables.ContainsKey("cache-hit") ? "HIT" : "MISS")</value>
@@ -157,6 +104,7 @@
             </when>
         </choose>
     </outbound>
+    
     <on-error>
         <base />
         <choose>
@@ -169,6 +117,5 @@
                 </return-response>
             </when>
         </choose>
-        <!-- Handle authentication/authorization errors -->
     </on-error>
 </policies>

@@ -57,6 +57,15 @@ module containerAppEnvironment 'host/containerAppEnvironment.bicep' = {
   }
 }
 
+module redisCache 'cache/azureRedis.bicep' = {
+  scope: resourceGroup
+  name: 'redis'
+  params: {
+    tags: tags
+    baseName: baseName
+  }
+}
+
 module mcpEntraApp 'apim/mcp-entra-app.bicep' = {
   scope: resourceGroup
   name: 'mcpEntraApp'
@@ -75,6 +84,7 @@ module apim 'apim/apim.bicep' = {
     baseName: baseName
     emailAddress: emailAddress
     publisherName: publisherName
+    redisCacheName: redisCache.outputs.name
   }
 }
 

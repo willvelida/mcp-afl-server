@@ -24,12 +24,19 @@ param publisherName string
 @description('The name of the App Insights workspace that this APIM will use')
 param appInsightsName string
 
+@description('The name of the Azure Redis Cache that will be used as the external cache for APIM')
+param redisCacheName string
+
 var apimName = 'apim-${baseName}-${environmentName}'
 var loggerName = '${apimName}-logger'
 var loggerDescription = 'APIM Logger for MCP Servers'
 
 resource appInsights 'Microsoft.Insights/components@2020-02-02' existing = {
   name: appInsightsName
+}
+
+resource redisCache 'Microsoft.Cache/redis@2024-11-01' existing = {
+  name: redisCacheName
 }
 
 resource apim 'Microsoft.ApiManagement/service@2024-06-01-preview' = {
@@ -57,6 +64,15 @@ resource apimLogger 'Microsoft.ApiManagement/service/loggers@2024-06-01-preview'
     description: loggerDescription
     isBuffered: false
     resourceId: appInsights.id
+  }
+}
+
+resource apimCache 'Microsoft.ApiManagement/service/caches@2024-06-01-preview' = {
+  name: 'apim-${redisCache.name}'
+  parent: apim
+  properties: {
+    connectionString: '${redisCache.properties.hostName}:${redisCache.properties.sslPort},password=${redisCache.listKeys().primaryKey},ssl=True,abortConnect=False'
+    useFromLocation: location
   }
 }
 

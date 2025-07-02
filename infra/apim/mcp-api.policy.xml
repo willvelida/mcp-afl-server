@@ -1,63 +1,47 @@
-<!--
-    Azure API Management Policy for MCP Server
-    Handles authentication and operation-specific caching for MCP endpoints
--->
+<!-- Azure API Management Policy for MCP Server
+    Handles authentication and operation-specific caching -->
 <policies>
     <inbound>
         <base />
-        <!-- Validate Azure AD JWT Token -->
+        
+        <!-- Validate Azure AD JWT Token (skip for mcp-prm) -->
         <validate-azure-ad-token tenant-id="{{McpTenantId}}" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
             <audiences>
                 <audience>{{McpClientId}}</audience>
             </audiences>
-        </validate-azure-ad-token>
+         </validate-azure-ad-token>
 
-        <!-- Operation-specific cache lookup -->
+
+        <!-- Single cache lookup - only for cacheable operations -->
         <choose>
-            <!-- Health check - cache for 30 seconds -->
-            <when condition="@(context.Operation.Name.Equals("mcp-health-check"))">
-                <cache-lookup vary-by-developer="false" 
-                             vary-by-developer-groups="false" 
-                             downstream-caching-type="none" 
-                             must-revalidate="true" 
-                             caching-type="internal">
-                    <vary-by-header>Accept</vary-by-header>
-                </cache-lookup>
-            </when>
-            
-            <!-- Streamable GET - cache for 5 minutes -->
-            <when condition="@(context.Operation.Name.Equals("mcp-streamable-get"))">
-                <cache-lookup vary-by-developer="false" 
-                             vary-by-developer-groups="false" 
-                             downstream-caching-type="none" 
-                             must-revalidate="true" 
-                             caching-type="internal">
-                    <vary-by-header>Accept</vary-by-header>
+            <when condition="@(context.Operation.Name == &quot;mcp-health-check&quot; || context.Operation.Name == &quot;mcp-streamable-get&quot;)">
+                <cache-lookup vary-by-developer="false" vary-by-developer-groups="false" caching-type="internal">
                     <vary-by-header>Authorization</vary-by-header>
                     <vary-by-query-parameter>*</vary-by-query-parameter>
                 </cache-lookup>
             </when>
         </choose>
         
-        <!-- Operation-specific cache control headers -->
+        <!-- Set cache control headers based on operation -->
         <set-header name="Cache-Control" exists-action="override">
             <value>@{
                 string operationName = context.Operation.Name;
-                if (operationName == "mcp-health-check") {
-                    return "public, max-age=30";
-                } else if (operationName == "mcp-streamable-get") {
-                    return "public, max-age=300, stale-while-revalidate=60";
-                } else if (operationName == "mcp-sse") {
-                    return "no-cache, no-store, must-revalidate";
-                } else if (operationName == "mcp-message" || operationName == "mcp-streamable-post") {
-                    return "no-cache, no-store, must-revalidate";
-                } else {
-                    return "public, max-age=60";
+                switch (operationName) {
+                    case "mcp-health-check":
+                        return "public, max-age=30";
+                    case "mcp-streamable-get":
+                        return "public, max-age=300";
+                    case "mcp-sse":
+                    case "mcp-message":
+                    case "mcp-streamable-post":
+                        return "no-cache, no-store, must-revalidate";
+                    default:
+                        return "public, max-age=60";
                 }
             }</value>
         </set-header>
 
-        <!-- Add operation context for debugging -->
+        <!-- Debug header -->
         <set-header name="X-Operation-Name" exists-action="override">
             <value>@(context.Operation.Name)</value>
         </set-header>
@@ -70,41 +54,30 @@
     <outbound>
         <base />
         
-        <!-- Operation-specific cache storage -->
+        <!-- Single cache store - only for successful cacheable operations -->
         <choose>
-            <when condition="@(context.Response.StatusCode == 200)">
-                <choose>
-                    <!-- Health check - 30 seconds -->
-                    <when condition="@(context.Operation.Name.Equals("mcp-health-check"))">
-                        <cache-store duration="30" caching-type="internal" />
-                    </when>
-                    
-                    <!-- Streamable GET - 5 minutes -->
-                    <when condition="@(context.Operation.Name.Equals("mcp-streamable-get"))">
-                        <cache-store duration="300" caching-type="internal" />
-                    </when>
-                    
-                    <!-- Don't cache SSE, POST operations, or real-time endpoints -->
-                </choose>
+            <when condition="@(context.Response.StatusCode == 200 &amp;&amp; (context.Operation.Name == &quot;mcp-health-check&quot; || context.Operation.Name == &quot;mcp-streamable-get&quot;))">
+                <cache-store caching-type="internal">
+                    <duration>@{
+                        string operationName = context.Operation.Name;
+                        if (operationName == "mcp-health-check") {
+                            return 30;
+                        } else if (operationName == "mcp-streamable-get") {
+                            return 300;
+                        }
+                        return 60;
+                    }</duration>
+                </cache-store>
             </when>
         </choose>
         
-        <!-- Add debugging and monitoring headers -->
+        <!-- Add monitoring headers -->
         <set-header name="X-Cache-Status" exists-action="override">
-            <value>@(context.Variables.ContainsKey("cache-hit") ? "HIT" : "MISS")</value>
-        </set-header>
-        
-        <set-header name="X-Cache-Key" exists-action="override">
-            <value>@(context.Variables.GetValueOrDefault("cache-key", "none").ToString())</value>
+            <value>@(context.Variables.ContainsKey("cachedResponse") ? "HIT" : "MISS")</value>
         </set-header>
         
         <set-header name="X-Response-Time" exists-action="override">
             <value>@(context.Elapsed.TotalMilliseconds.ToString() + "ms")</value>
-        </set-header>
-        
-        <!-- Add MCP-specific headers -->
-        <set-header name="X-MCP-Server" exists-action="override">
-            <value>AFL-MCP-Server</value>
         </set-header>
     </outbound>
     

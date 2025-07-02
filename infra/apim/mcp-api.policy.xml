@@ -27,7 +27,7 @@
         
         <!-- Add response time for monitoring -->
         <set-header name="X-Response-Time" exists-action="override">
-            <value>@(context.Elapsed.TotalMilliseconds.ToString())ms</value>
+            <value>@(context.Elapsed.TotalMilliseconds.ToString() + "ms")</value>
         </set-header>
     </outbound>
     

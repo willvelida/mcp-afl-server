@@ -12,12 +12,150 @@
                 <audience>{{McpClientId}}</audience>
             </audiences>
         </validate-azure-ad-token>
+
+        <choose>
+            <!-- Current standings - cache for 30 minutes -->
+            <when condition="@(context.Operation.Name.Equals(&quot;getCurrentStandings&quot;))">
+                <cache-lookup vary-by-developer="false" 
+                             vary-by-developer-groups="false" 
+                             downstream-caching-type="none" 
+                             must-revalidate="true" 
+                             caching-type="external"
+                             cache-name="redis-cache">
+                    <vary-by-header>Accept</vary-by-header>
+                    <vary-by-header>Authorization</vary-by-header>
+                </cache-lookup>
+            </when>
+            <!-- Game results - cache for 24 hours -->
+            <when condition="@(context.Operation.Name.Equals(&quot;getGameResult&quot;))">
+                <cache-lookup vary-by-developer="false" 
+                             vary-by-developer-groups="false" 
+                             downstream-caching-type="none" 
+                             must-revalidate="true" 
+                             caching-type="external"
+                             cache-name="redis-cache">
+                    <vary-by-header>Accept</vary-by-header>
+                    <vary-by-header>Authorization</vary-by-header>
+                    <vary-by-query-parameter>gameId</vary-by-query-parameter>
+                </cache-lookup>
+            </when>
+            <!-- Power rankings - cache for 2 hours -->
+            <when condition="@(context.Operation.Name.Equals(&quot;getPowerRankingByRoundAndYear&quot;))">
+                <cache-lookup vary-by-developer="false" 
+                             vary-by-developer-groups="false" 
+                             downstream-caching-type="none" 
+                             must-revalidate="true" 
+                             caching-type="external"
+                             cache-name="redis-cache">
+                    <vary-by-header>Accept</vary-by-header>
+                    <vary-by-header>Authorization</vary-by-header>
+                    <vary-by-query-parameter>roundNumber</vary-by-query-parameter>
+                    <vary-by-query-parameter>year</vary-by-query-parameter>
+                    <vary-by-query-parameter>sourceId</vary-by-query-parameter>
+                </cache-lookup>
+            </when>
+            <!-- Tips - cache for 1 hour -->
+            <when condition="@(context.Operation.Name.Equals(&quot;getFutureTips&quot;) || context.Operation.Name.Equals(&quot;getTipsByRoundAndYear&quot;))">
+                <cache-lookup vary-by-developer="false" 
+                             vary-by-developer-groups="false" 
+                             downstream-caching-type="none" 
+                             must-revalidate="true" 
+                             caching-type="external"
+                             cache-name="redis-cache">
+                    <vary-by-header>Accept</vary-by-header>
+                    <vary-by-header>Authorization</vary-by-header>
+                    <vary-by-query-parameter>roundNumber</vary-by-query-parameter>
+                    <vary-by-query-parameter>year</vary-by-query-parameter>
+                </cache-lookup>
+            </when>
+            <!-- Team info - cache for 6 hours -->
+            <when condition="@(context.Operation.Name.Equals(&quot;getTeamInfo&quot;))">
+                <cache-lookup vary-by-developer="false" 
+                             vary-by-developer-groups="false" 
+                             downstream-caching-type="none" 
+                             must-revalidate="true" 
+                             caching-type="external"
+                             cache-name="redis-cache">
+                    <vary-by-header>Accept</vary-by-header>
+                    <vary-by-header>Authorization</vary-by-header>
+                    <vary-by-query-parameter>teamId</vary-by-query-parameter>
+                </cache-lookup>
+            </when>
+        </choose>
+        <!-- Add cache control headers -->
+        <set-header name="Cache-Control" exists-action="override">
+            <value>@{
+                string operationName = context.Operation.Name;
+                return operationName switch {
+                    "getCurrentStandings" => "public, max-age=1800, stale-while-revalidate=300",
+                    "getGameResult" => "public, max-age=86400, immutable",
+                    "getPowerRankingByRoundAndYear" => "public, max-age=7200, stale-while-revalidate=600",
+                    "getFutureTips" or "getTipsByRoundAndYear" => "public, max-age=3600, stale-while-revalidate=300",
+                    "getTeamInfo" => "public, max-age=21600, stale-while-revalidate=1800",
+                    _ => "public, max-age=300"
+                };
+            }</value>
+        </set-header>
     </inbound>
     <backend>
         <base />
     </backend>
     <outbound>
         <base />
+        <!-- Store successful responses in cache -->
+        <choose>
+            <when condition="@(context.Response.StatusCode == 200)">
+                <choose>
+                    <!-- Current standings - 30 minutes -->
+                    <when condition="@(context.Operation.Name.Equals(&quot;getCurrentStandings&quot;))">
+                        <cache-store duration="1800" 
+                                   caching-type="external" 
+                                   cache-name="redis-cache" />
+                    </when>
+                    
+                    <!-- Game results - 24 hours -->
+                    <when condition="@(context.Operation.Name.Equals(&quot;getGameResult&quot;))">
+                        <cache-store duration="86400" 
+                                   caching-type="external" 
+                                   cache-name="redis-cache" />
+                    </when>
+                    
+                    <!-- Power rankings - 2 hours -->
+                    <when condition="@(context.Operation.Name.Equals(&quot;getPowerRankingByRoundAndYear&quot;))">
+                        <cache-store duration="7200" 
+                                   caching-type="external" 
+                                   cache-name="redis-cache" />
+                    </when>
+                    
+                    <!-- Tips - 1 hour -->
+                    <when condition="@(context.Operation.Name.Equals(&quot;getFutureTips&quot;) || context.Operation.Name.Equals(&quot;getTipsByRoundAndYear&quot;))">
+                        <cache-store duration="3600" 
+                                   caching-type="external" 
+                                   cache-name="redis-cache" />
+                    </when>
+                    
+                    <!-- Team info - 6 hours -->
+                    <when condition="@(context.Operation.Name.Equals(&quot;getTeamInfo&quot;))">
+                        <cache-store duration="21600" 
+                                   caching-type="external" 
+                                   cache-name="redis-cache" />
+                    </when>
+                </choose>
+                <!-- Add debugging headers -->
+                <set-header name="X-Cache-Status" exists-action="override">
+                    <value>@(context.Variables.ContainsKey("cache-hit") ? "HIT" : "MISS")</value>
+                </set-header>
+                
+                <set-header name="X-Cache-Key" exists-action="override">
+                    <value>@(context.Variables.GetValueOrDefault("cache-key", "none").ToString())</value>
+                </set-header>
+                
+                <!-- Add response time for monitoring -->
+                <set-header name="X-Response-Time" exists-action="override">
+                    <value>@(context.Elapsed.TotalMilliseconds.ToString())ms</value>
+                </set-header>
+            </when>
+        </choose>
     </outbound>
     <on-error>
         <base />

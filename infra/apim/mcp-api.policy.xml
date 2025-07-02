@@ -11,50 +11,10 @@
                 <audience>{{McpClientId}}</audience>
             </audiences>
         </validate-azure-ad-token>
-
-        <choose>
-            <!-- MCP SSE endpoint - cache for 5 minutes -->
-            <when condition="@(context.Operation.Name.Equals("mcp-sse"))">
-                <cache-lookup vary-by-developer="false" 
-                             vary-by-developer-groups="false" 
-                             downstream-caching-type="none" 
-                             must-revalidate="true" 
-                             caching-type="internal">
-                    <vary-by-header>Accept</vary-by-header>
-                    <vary-by-header>Authorization</vary-by-header>
-                </cache-lookup>
-            </when>
-            
-            <!-- MCP Message endpoint - no caching for POST operations -->
-            <when condition="@(context.Operation.Name.Equals("mcp-message"))">
-                <!-- No caching for POST operations -->
-            </when>
-            
-            <!-- Health check - cache for 1 minute -->
-            <when condition="@(context.Operation.Name.Equals("mcp-health-check"))">
-                <cache-lookup vary-by-developer="false" 
-                             vary-by-developer-groups="false" 
-                             downstream-caching-type="none" 
-                             must-revalidate="true" 
-                             caching-type="internal">
-                    <vary-by-header>Accept</vary-by-header>
-                </cache-lookup>
-            </when>
-        </choose>
         
-        <!-- Add cache control headers -->
+        <!-- Simple cache control -->
         <set-header name="Cache-Control" exists-action="override">
-            <value>@{
-                string operationName = context.Operation.Name;
-                return operationName switch {
-                    "mcp-sse" => "public, max-age=300, stale-while-revalidate=60",
-                    "mcp-health-check" => "public, max-age=60",
-                    "mcp-message" => "no-cache, no-store, must-revalidate",
-                    "mcp-streamable-get" => "public, max-age=300",
-                    "mcp-streamable-post" => "no-cache, no-store, must-revalidate",
-                    _ => "public, max-age=300"
-                };
-            }</value>
+            <value>public, max-age=300</value>
         </set-header>
     </inbound>
     
@@ -65,44 +25,10 @@
     <outbound>
         <base />
         
-        <!-- Store successful responses in cache -->
-        <choose>
-            <when condition="@(context.Response.StatusCode == 200)">
-                <choose>
-                    <!-- SSE endpoint - 5 minutes -->
-                    <when condition="@(context.Operation.Name.Equals("mcp-sse"))">
-                        <cache-store duration="300" 
-                                   caching-type="internal" />
-                    </when>
-                    
-                    <!-- Health check - 1 minute -->
-                    <when condition="@(context.Operation.Name.Equals("mcp-health-check"))">
-                        <cache-store duration="60" 
-                                   caching-type="internal" />
-                    </when>
-                    
-                    <!-- Streamable GET - 5 minutes -->
-                    <when condition="@(context.Operation.Name.Equals("mcp-streamable-get"))">
-                        <cache-store duration="300" 
-                                   caching-type="internal" />
-                    </when>
-                </choose>
-                
-                <!-- Add debugging headers -->
-                <set-header name="X-Cache-Status" exists-action="override">
-                    <value>@(context.Variables.ContainsKey("cache-hit") ? "HIT" : "MISS")</value>
-                </set-header>
-                
-                <set-header name="X-Cache-Key" exists-action="override">
-                    <value>@(context.Variables.GetValueOrDefault("cache-key", "none").ToString())</value>
-                </set-header>
-                
-                <!-- Add response time for monitoring -->
-                <set-header name="X-Response-Time" exists-action="override">
-                    <value>@(context.Elapsed.TotalMilliseconds.ToString())ms</value>
-                </set-header>
-            </when>
-        </choose>
+        <!-- Add response time for monitoring -->
+        <set-header name="X-Response-Time" exists-action="override">
+            <value>@(context.Elapsed.TotalMilliseconds.ToString())ms</value>
+        </set-header>
     </outbound>
     
     <on-error>

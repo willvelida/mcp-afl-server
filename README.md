@@ -6,6 +6,8 @@ This is a Model Context Protocol (MCP) server that provides AFL (Australian Foot
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg?style=flat-square)](https://modelcontextprotocol.io)
 
+[![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/willvelida/mcp-afl-server)](https://archestra.ai/mcp-catalog/willvelida__mcp-afl-server)
+
 ## ✨ Features
 
 This MCP Server offers comprehensive access to AFL data, providing tools for:

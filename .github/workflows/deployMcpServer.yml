@@ -33,7 +33,7 @@ jobs:
       needs: env-setup
       runs-on: ubuntu-latest
       steps:
-        - uses: actions/checkout@v4
+        - uses: actions/checkout@v5
           name: Checkout code
 
         - name: Setup .NET
@@ -81,7 +81,7 @@ jobs:
             run:
                 working-directory: './src'
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
               name: Checkout code
 
             - uses: azure/login@v2
@@ -122,7 +122,7 @@ jobs:
         needs: test-and-coverage
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
               name: Checkout code
             
             - name: Run Bicep Linter
@@ -133,7 +133,7 @@ jobs:
         needs: [lint-bicep, build-container-image]
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
               name: Checkout code
 
             - uses: azure/login@v2
@@ -160,7 +160,7 @@ jobs:
         needs: [lint-bicep, build-container-image, validate-bicep]
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
               name: Checkout code
             
             - uses: azure/login@v2
@@ -190,7 +190,7 @@ jobs:
         runs-on: ubuntu-latest
         environment: prod
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
               name: Checkout code
             
             - uses: azure/login@v2

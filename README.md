@@ -162,3 +162,8 @@ The Australian Football League (AFL) is the premier professional Australian rule
 ---
 
 **Built with ❤️ for the AFL community**
+
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/willvelida-mcp-afl-server).
+
